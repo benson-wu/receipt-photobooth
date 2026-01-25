@@ -1,0 +1,89 @@
+:root {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  color-scheme: light dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+#app {
+  height: 100%;
+}
+
+.screen {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.header {
+  padding: 12px 16px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.stage {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+}
+
+.card {
+  width: min(900px, 100%);
+  height: min(900px, 100%);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(128,128,128,0.3);
+  background: rgba(128,128,128,0.08);
+  position: relative;
+}
+
+.video, .photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: black;
+}
+
+.footer {
+  padding: 14px 16px;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+button {
+  font-size: 18px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  border: 1px solid rgba(128,128,128,0.35);
+  background: rgba(128,128,128,0.12);
+  cursor: pointer;
+  min-width: 160px;
+}
+
+button.primary {
+  font-weight: 700;
+}
+
+.small {
+  font-size: 14px;
+  opacity: 0.85;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 80px;
+  font-weight: 800;
+  background: rgba(0,0,0,0.35);
+  color: white;
+}
