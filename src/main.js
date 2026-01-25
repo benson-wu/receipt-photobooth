@@ -79,7 +79,6 @@ function renderCamera() {
   const video = document.querySelector("#video");
   video.srcObject = stream;
 
-  // ✅ click handlers go here (AFTER innerHTML)
   document.querySelector("#cancelBtn").addEventListener("click", () => {
     stopStream();
     renderStart();

@@ -5,6 +5,10 @@
 
 * { box-sizing: border-box; }
 
+body {
+  background: #A7F3D0 !important; /* mint */
+}
+
 html, body {
   height: 100%;
   margin: 0;
@@ -87,3 +91,4 @@ button.primary {
   background: rgba(0,0,0,0.35);
   color: white;
 }
+
