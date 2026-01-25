@@ -8,7 +8,7 @@ let lastPhotoDataUrl = null;
 function renderStart() {
   app.innerHTML = `
     <div class="screen">
-      <div class="header">Receipt Photobooth</div>
+      <div class="header">Pocha 31: Tiff's Birthday Edition</div>
       <div class="stage">
         <div class="card" style="display:grid; place-items:center; padding:24px; text-align:center;">
           <div>
@@ -30,7 +30,7 @@ async function startCamera() {
   try {
     // Prefer the back camera on iPad/iPhone
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" } },
+      video: { facingMode: "user" },
       audio: false,
     });
 
@@ -62,7 +62,7 @@ async function startCamera() {
 function renderCamera() {
   app.innerHTML = `
     <div class="screen">
-      <div class="header">Receipt Photobooth</div>
+      <div class="header">Pocha 31: Tiff's Birthday Edition</div>
       <div class="stage">
         <div class="card">
           <video class="video" id="video" autoplay playsinline></video>
@@ -79,12 +79,15 @@ function renderCamera() {
   const video = document.querySelector("#video");
   video.srcObject = stream;
 
+  // ✅ click handlers go here (AFTER innerHTML)
   document.querySelector("#cancelBtn").addEventListener("click", () => {
     stopStream();
     renderStart();
   });
 
-  document.querySelector("#captureBtn").addEventListener("click", () => captureWithCountdown(video));
+  document.querySelector("#captureBtn").addEventListener("click", () => {
+    captureWithCountdown(video);
+  });
 }
 
 async function captureWithCountdown(videoEl) {
