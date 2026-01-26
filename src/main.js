@@ -30,7 +30,7 @@ let stream = null;
 let lastPhotoDataUrl = null;
 let selectedTemplateId = null;
 let shots = [];
-let requiredShots = 0;
+let requiredShots = 2;
 
 function renderTemplateSelect() {
   const cardsHtml = TEMPLATES.map(t => `
@@ -232,40 +232,158 @@ async function captureWithCountdown(videoEl) {
 
 }
 
-function renderPreview() {
-  app.innerHTML = `
-    <div class="screen">
-      <div class="header">Preview</div>
-      <div class="stage">
-        <div class="card">
-          <img class="photo" src="${lastPhotoDataUrl}" alt="Captured photo" />
-        </div>
-      </div>
-      <div class="footer">
-        <button id="retakeBtn">Retake</button>
-        <button class="primary" id="saveBtn">Save</button>
-      </div>
-    </div>
-  `;
-
-  document.querySelector("#retakeBtn").addEventListener("click", renderCamera);
-  document.querySelector("#saveBtn").addEventListener("click", savePhoto);
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
 }
 
-function renderFinalCompositePreview() {
+function drawCover(ctx, img, x, y, w, h) {
+  const imgAspect = img.width / img.height;
+  const boxAspect = w / h;
+
+  let sx, sy, sw, sh;
+
+  if (imgAspect > boxAspect) {
+    sh = img.height;
+    sw = sh * boxAspect;
+    sx = (img.width - sw) / 2;
+    sy = 0;
+  } else {
+    sw = img.width;
+    sh = sw / boxAspect;
+    sx = 0;
+    sy = (img.height - sh) / 2;
+  }
+
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+
+async function buildCompositeDataUrl() {
+  const W = 900;
+  const H = 1350;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+
+  const ctx = canvas.getContext("2d");
+
+  // Background
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, H);
+
+  // Header
+  const pad = 30;
+  const headerH = 120;
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(0, 0, W, headerH);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 44px system-ui";
+  ctx.fillText("Pocha 31", pad, 70);
+  ctx.font = "600 26px system-ui";
+  ctx.fillText("Tiff's Birthday Edition", pad, 105);
+
+  // Photo area
+  const photoTop = headerH + 20;
+  const footerH = 140;
+  const photoH = H - photoTop - footerH;
+  const photoW = W - pad * 2;
+  const photoX = pad;
+  const photoY = photoTop;
+
+  const imgs = await Promise.all(shots.map(loadImage));
+
+  if (requiredShots === 1) {
+    drawCover(ctx, imgs[0], photoX, photoY, photoW, photoH);
+  } else if (requiredShots === 2) {
+    const gap = 20;
+    const hEach = (photoH - gap) / 2;
+    drawCover(ctx, imgs[0], photoX, photoY, photoW, hEach);
+    drawCover(ctx, imgs[1], photoX, photoY + hEach + gap, photoW, hEach);
+  } else if (requiredShots === 4) {
+    const gap = 20;
+    const wEach = (photoW - gap) / 2;
+    const hEach = (photoH - gap) / 2;
+    drawCover(ctx, imgs[0], photoX, photoY, wEach, hEach);
+    drawCover(ctx, imgs[1], photoX + wEach + gap, photoY, wEach, hEach);
+    drawCover(ctx, imgs[2], photoX, photoY + hEach + gap, wEach, hEach);
+    drawCover(ctx, imgs[3], photoX + wEach + gap, photoY + hEach + gap, wEach, hEach);
+  } else {
+    drawCover(ctx, imgs[0], photoX, photoY, photoW, photoH);
+  }
+
+  // Footer text
+  ctx.fillStyle = "#111827";
+  ctx.font = "600 26px system-ui";
+  ctx.fillText(new Date().toLocaleString(), pad, H - 70);
+
+  ctx.fillStyle = "#6b7280";
+  ctx.font = "500 22px system-ui";
+  ctx.fillText("Made with ❤️ for Tiff", pad, H - 35);
+
+  return canvas.toDataURL("image/jpeg", 0.92);
+}
+
+async function renderFinalCompositePreview() {
   app.innerHTML = `
     <div class="screen">
-      <div class="header">Done!</div>
+      <div class="header">Final Preview</div>
       <div class="stage">
-        <div class="card" style="display:grid; place-items:center; padding:24px; text-align:center;">
-          <div>
-            <div style="font-size:28px; font-weight:800;">Captured ${shots.length} photos</div>
-            <div class="small" style="margin-top:8px;">Next: stitch into one image</div>
-          </div>
+        <div class="card" style="display:grid; place-items:center; padding:24px;">
+          <div class="small">Rendering...</div>
         </div>
       </div>
       <div class="footer">
         <button id="restartBtn">Start Over</button>
+      </div>
+    </div>
+  `;
+
+  let compositeDataUrl;
+  try {
+    compositeDataUrl = await buildCompositeDataUrl();
+  } catch (e) {
+    app.innerHTML = `
+      <div class="screen">
+        <div class="header">Final Preview</div>
+        <div class="stage">
+          <div class="card" style="display:grid; place-items:center; padding:24px; text-align:center;">
+            <div>
+              <div style="font-size:22px;font-weight:800;">Failed to render composite</div>
+              <div class="small" style="margin-top:8px;">${String(e)}</div>
+            </div>
+          </div>
+        </div>
+        <div class="footer">
+          <button id="restartBtn">Start Over</button>
+        </div>
+      </div>
+    `;
+    document.querySelector("#restartBtn").addEventListener("click", () => {
+      shots = [];
+      requiredShots = 0;
+      stopStream();
+      renderStart();
+    });
+    return;
+  }
+
+  app.innerHTML = `
+    <div class="screen">
+      <div class="header">Final Preview</div>
+      <div class="stage">
+        <div class="card">
+          <img class="photo" src="${compositeDataUrl}" alt="Final composite" />
+        </div>
+      </div>
+      <div class="footer">
+        <button id="restartBtn">Start Over</button>
+        <button class="primary" id="saveBtn">Save</button>
       </div>
     </div>
   `;
@@ -276,7 +394,17 @@ function renderFinalCompositePreview() {
     stopStream();
     renderStart();
   });
+
+  document.querySelector("#saveBtn").addEventListener("click", () => {
+    const a = document.createElement("a");
+    a.href = compositeDataUrl;
+    a.download = `pocha31_${new Date().toISOString().replaceAll(":", "-")}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
 }
+
 
 function loadImage(src) {
   return new Promise((resolve, reject) => {
@@ -284,6 +412,153 @@ function loadImage(src) {
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
+  });
+}
+
+function drawCover(ctx, img, x, y, w, h) {
+  const imgAspect = img.width / img.height;
+  const boxAspect = w / h;
+
+  let sx, sy, sw, sh;
+
+  if (imgAspect > boxAspect) {
+    // image is wider than box: crop left/right
+    sh = img.height;
+    sw = sh * boxAspect;
+    sx = (img.width - sw) / 2;
+    sy = 0;
+  } else {
+    // image is taller than box: crop top/bottom
+    sw = img.width;
+    sh = sw / boxAspect;
+    sx = 0;
+    sy = (img.height - sh) / 2;
+  }
+
+  ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+}
+
+async function buildCompositeDataUrl() {
+  // Receipt-ish aspect ratio. You can tweak these later.
+  const W = 900;
+  const H = 1350;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+
+  const ctx = canvas.getContext("2d");
+
+  // Background
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, W, H);
+
+  // Header bar
+  const pad = 30;
+  const headerH = 120;
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(0, 0, W, headerH);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "bold 44px system-ui";
+  ctx.fillText("Pocha 31", pad, 70);
+
+  ctx.font = "600 26px system-ui";
+  ctx.fillText("Tiff's Birthday Edition", pad, 105);
+
+  // Photo area bounds
+  const photoTop = headerH + 20;
+  const photoBottomPad = 140; // space for footer text
+  const photoH = H - photoTop - photoBottomPad;
+  const photoW = W - pad * 2;
+  const photoX = pad;
+  const photoY = photoTop;
+
+  // Load images
+  const imgs = await Promise.all(shots.map(loadImage));
+
+  // Layouts
+  if (requiredShots === 1) {
+    drawCover(ctx, imgs[0], photoX, photoY, photoW, photoH);
+  } else if (requiredShots === 2) {
+    const gap = 20;
+    const hEach = (photoH - gap) / 2;
+    drawCover(ctx, imgs[0], photoX, photoY, photoW, hEach);
+    drawCover(ctx, imgs[1], photoX, photoY + hEach + gap, photoW, hEach);
+  } else if (requiredShots === 4) {
+    const gap = 20;
+    const wEach = (photoW - gap) / 2;
+    const hEach = (photoH - gap) / 2;
+    drawCover(ctx, imgs[0], photoX, photoY, wEach, hEach);
+    drawCover(ctx, imgs[1], photoX + wEach + gap, photoY, wEach, hEach);
+    drawCover(ctx, imgs[2], photoX, photoY + hEach + gap, wEach, hEach);
+    drawCover(ctx, imgs[3], photoX + wEach + gap, photoY + hEach + gap, wEach, hEach);
+  } else {
+    // fallback: just show the first photo full
+    drawCover(ctx, imgs[0], photoX, photoY, photoW, photoH);
+  }
+
+  // Footer
+  ctx.fillStyle = "#111827";
+  ctx.font = "600 26px system-ui";
+  const ts = new Date().toLocaleString();
+  ctx.fillText(ts, pad, H - 70);
+
+  ctx.font = "500 22px system-ui";
+  ctx.fillStyle = "#6b7280";
+  ctx.fillText("Made with ❤️ for Tiff", pad, H - 35);
+
+  return canvas.toDataURL("image/jpeg", 0.92);
+}
+
+async function renderFinalCompositePreview() {
+  app.innerHTML = `
+    <div class="screen">
+      <div class="header">Final Preview</div>
+      <div class="stage">
+        <div class="card" style="display:grid; place-items:center; padding:24px;">
+          <div class="small">Rendering...</div>
+        </div>
+      </div>
+      <div class="footer">
+        <button id="restartBtn">Start Over</button>
+      </div>
+    </div>
+  `;
+
+  // Build composite
+  const compositeDataUrl = await buildCompositeDataUrl();
+
+  // Render final image
+  app.innerHTML = `
+    <div class="screen">
+      <div class="header">Final Preview</div>
+      <div class="stage">
+        <div class="card">
+          <img class="photo" src="${compositeDataUrl}" alt="Final composite" />
+        </div>
+      </div>
+      <div class="footer">
+        <button id="restartBtn">Start Over</button>
+        <button class="primary" id="saveBtn">Save</button>
+      </div>
+    </div>
+  `;
+
+  document.querySelector("#restartBtn").addEventListener("click", () => {
+    shots = [];
+    requiredShots = 0;
+    stopStream();
+    renderStart(); // or renderTemplateSelect if you prefer
+  });
+
+  document.querySelector("#saveBtn").addEventListener("click", () => {
+    const a = document.createElement("a");
+    a.href = compositeDataUrl;
+    a.download = `pocha31_${new Date().toISOString().replaceAll(":", "-")}.jpg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
   });
 }
 
