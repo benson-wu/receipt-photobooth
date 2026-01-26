@@ -2,8 +2,98 @@ import "./style.css";
 
 const app = document.querySelector("#app");
 
+const TEMPLATES = [
+  {
+    id: "single",
+    name: "1 Photo",
+    shots: 1,
+    // later: layout renderer
+  },
+  {
+    id: "duo",
+    name: "2 Photos",
+    shots: 2,
+  },
+  {
+    id: "trio",
+    name: "3 Photos",
+    shots: 3,
+  },
+  {
+    id: "quad",
+    name: "4 Photos",
+    shots: 4,
+  },
+];
+
 let stream = null;
 let lastPhotoDataUrl = null;
+let selectedTemplateId = null;
+let shots = [];
+let requiredShots = 0;
+
+function renderTemplateSelect() {
+  const cardsHtml = TEMPLATES.map(t => `
+    <button class="templateCard ${selectedTemplateId === t.id ? "selected" : ""}" data-id="${t.id}">
+      <div class="templateThumb">
+        ${renderTemplateThumb(t.id)}
+      </div>
+      <div class="templateLabel">${t.name}</div>
+    </button>
+  `).join("");
+
+  app.innerHTML = `
+    <div class="screen mint">
+      <div class="header">Pocha 31: Tiff's Birthday Edition</div>
+
+      <div class="stage">
+        <div class="card" style="padding:16px;">
+          <div style="font-size:20px;font-weight:800;margin-bottom:10px;">Choose a template</div>
+          <div class="templateGrid">
+            ${cardsHtml}
+          </div>
+          <div class="small" style="margin-top:10px;">Slide/scroll if needed</div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <button id="backBtn">Back</button>
+        <button class="primary" id="confirmBtn" ${selectedTemplateId ? "" : "disabled"}>Confirm</button>
+      </div>
+    </div>
+  `;
+
+  document.querySelector("#backBtn").addEventListener("click", renderStart);
+
+  document.querySelectorAll(".templateCard").forEach(btn => {
+    btn.addEventListener("click", () => {
+      selectedTemplateId = btn.dataset.id;
+      renderTemplateSelect(); // re-render to show selection
+    });
+  });
+
+  document.querySelector("#confirmBtn").addEventListener("click", () => {
+    if (!selectedTemplateId) return;
+    const t = TEMPLATES.find(x => x.id === selectedTemplateId);
+    requiredShots = t.shots;
+    shots = [];
+    startCameraForTemplate();
+  });
+}
+
+function renderTemplateThumb(id) {
+  if (id === "single") return `<div class="thumbBox full"></div>`;
+  if (id === "duo") return `<div class="thumbBox half"></div><div class="thumbBox half"></div>`;
+  if (id === "trio") return `<div class="thumbBox wide"></div><div class="thumbRow"><div class="thumbBox half"></div><div class="thumbBox half"></div></div>`;
+  if (id === "quad") return `<div class="thumbRow"><div class="thumbBox half"></div><div class="thumbBox half"></div></div><div class="thumbRow"><div class="thumbBox half"></div><div class="thumbBox half"></div></div>`;
+  return "";
+}
+
+async function startCameraForTemplate() {
+  await startCamera();       // your existing function that sets `stream`
+  renderCamera();            // show camera UI
+  updateShotLabel();         // add “Shot 1 of N”
+}
 
 function renderStart() {
   app.innerHTML = `
@@ -23,7 +113,7 @@ function renderStart() {
     </div>
   `;
 
-  document.querySelector("#startBtn").addEventListener("click", startCamera);
+  document.querySelector("#startBtn").addEventListener("click", renderTemplateSelect);
 }
 
 async function startCamera() {
@@ -38,7 +128,10 @@ async function startCamera() {
   } catch (err) {
     app.innerHTML = `
       <div class="screen">
-        <div class="header">Receipt Photobooth</div>
+        <div class="header">
+          Pocha 31: Tiff's Birthday Edition
+          <span id="shotLabel" class="shotLabel"></span>
+        </div>
         <div class="stage">
           <div class="card" style="display:grid; place-items:center; padding:24px; text-align:center;">
             <div>
@@ -62,7 +155,10 @@ async function startCamera() {
 function renderCamera() {
   app.innerHTML = `
     <div class="screen">
-      <div class="header">Pocha 31: Tiff's Birthday Edition</div>
+      <div class="header">
+        Pocha 31: Tiff's Birthday Edition
+        <span id="shotLabel" class="shotLabel"></span>
+      </div>
       <div class="stage">
         <div class="card">
           <video class="video" id="video" autoplay playsinline></video>
@@ -79,6 +175,8 @@ function renderCamera() {
   const video = document.querySelector("#video");
   video.srcObject = stream;
 
+  updateShotLabel(); // <-- set "Shot X of N" text
+
   document.querySelector("#cancelBtn").addEventListener("click", () => {
     stopStream();
     renderStart();
@@ -87,6 +185,18 @@ function renderCamera() {
   document.querySelector("#captureBtn").addEventListener("click", () => {
     captureWithCountdown(video);
   });
+}
+
+function updateShotLabel() {
+  const el = document.querySelector("#shotLabel");
+  if (!el) return;
+
+  if (!requiredShots) {
+    el.textContent = "";
+    return;
+  }
+
+  el.textContent = ` • Shot ${shots.length + 1} of ${requiredShots}`;
 }
 
 async function captureWithCountdown(videoEl) {
@@ -110,8 +220,16 @@ async function captureWithCountdown(videoEl) {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(videoEl, 0, 0, w, h);
 
-  lastPhotoDataUrl = canvas.toDataURL("image/jpeg", 0.92);
-  renderPreview();
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+
+  shots.push(dataUrl);
+
+  if (shots.length < requiredShots) {
+    renderCamera();
+  } else {
+    renderFinalCompositePreview();
+  }
+
 }
 
 function renderPreview() {
@@ -133,6 +251,42 @@ function renderPreview() {
   document.querySelector("#retakeBtn").addEventListener("click", renderCamera);
   document.querySelector("#saveBtn").addEventListener("click", savePhoto);
 }
+
+function renderFinalCompositePreview() {
+  app.innerHTML = `
+    <div class="screen">
+      <div class="header">Done!</div>
+      <div class="stage">
+        <div class="card" style="display:grid; place-items:center; padding:24px; text-align:center;">
+          <div>
+            <div style="font-size:28px; font-weight:800;">Captured ${shots.length} photos</div>
+            <div class="small" style="margin-top:8px;">Next: stitch into one image</div>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        <button id="restartBtn">Start Over</button>
+      </div>
+    </div>
+  `;
+
+  document.querySelector("#restartBtn").addEventListener("click", () => {
+    shots = [];
+    requiredShots = 0;
+    stopStream();
+    renderStart();
+  });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
 
 function savePhoto() {
   // Trigger a download. On iPad Safari, this may open the share sheet or show the image.
