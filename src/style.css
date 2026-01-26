@@ -58,3 +58,19 @@ body { background: #A7F3D0; }
   margin-left: 8px;
   font-size: 14px;
 }
+
+.flash {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 48px;
+  font-weight: 900;
+  background: rgba(255, 255, 255, 0.92);
+  color: rgba(17, 24, 39, 0.95);
+}
+
+.card {
+  position: relative;
+}
+

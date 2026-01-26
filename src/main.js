@@ -1,4 +1,5 @@
 import "./style.css";
+import QRCode from "qrcode";
 
 const app = document.querySelector("#app");
 
@@ -15,6 +16,9 @@ let stream = null;
 let selectedTemplateId = null;
 let shots = [];
 let requiredShots = 0;
+let orderNumber = null;
+let orderDate = null;
+
 
 // -------------------- Screens --------------------
 function renderStart() {
@@ -119,6 +123,9 @@ function renderCamera() {
         <div class="card">
           <video class="video" id="video" autoplay playsinline></video>
           <div class="overlay" id="countdown" style="display:none;"></div>
+
+          <!-- Flash / "Nice!" overlay -->
+          <div class="flash" id="flash" style="display:none;">Nice!</div>
         </div>
       </div>
 
@@ -206,6 +213,13 @@ async function captureWithCountdown(videoEl) {
   const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
   shots.push(dataUrl);
 
+  const flash = document.querySelector("#flash");
+  if (flash) {
+    flash.style.display = "grid";
+    await wait(500);
+    flash.style.display = "none";
+  }
+
   if (shots.length < requiredShots) {
     renderCamera();
   } else {
@@ -244,69 +258,119 @@ function drawCover(ctx, img, x, y, w, h) {
   ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
 }
 
+function drawText(ctx, text, x, y, opts = {}) {
+  const { size = 26, weight = "600", color = "#111827", font = "ui-monospace, SFMono-Regular, Menlo, monospace" } = opts;
+  ctx.fillStyle = color;
+  ctx.font = `${weight} ${size}px ${font}`;
+  ctx.fillText(text, x, y);
+}
+
+function drawDashedLine(ctx, x1, y, x2) {
+  ctx.save();
+  ctx.setLineDash([10, 8]);
+  ctx.strokeStyle = "#111827";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x1, y);
+  ctx.lineTo(x2, y);
+  ctx.stroke();
+  ctx.restore();
+}
+
 async function buildCompositeDataUrl() {
-  // Receipt-ish aspect ratio
   const W = 900;
-  const H = 1350;
+  const H = 1650; // a bit taller for receipt text + qr
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d");
 
-  // Background
+  // paper bg
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, H);
 
-  // Header
-  const pad = 30;
-  const headerH = 120;
-  ctx.fillStyle = "#111827";
-  ctx.fillRect(0, 0, W, headerH);
+  const pad = 40;
+  let y = 70;
 
-  ctx.fillStyle = "#ffffff";
-  ctx.font = "bold 44px system-ui";
-  ctx.fillText("Pocha 31", pad, 70);
-  ctx.font = "600 26px system-ui";
-  ctx.fillText("Tiff's Birthday Edition", pad, 105);
+  // Receipt header
+  drawText(ctx, "POCHA 31", pad, y, { size: 44, weight: "900" }); y += 38;
+  drawText(ctx, "Tiff's Birthday Edition", pad, y, { size: 24, weight: "700" }); y += 40;
 
-  // Photo area
-  const photoTop = headerH + 20;
-  const footerH = 140;
-  const photoH = H - photoTop - footerH;
-  const photoW = W - pad * 2;
-  const photoX = pad;
-  const photoY = photoTop;
+  const dt = orderDate ? orderDate.toLocaleString() : new Date().toLocaleString();
+  drawText(ctx, `DATE: ${dt}`, pad, y, { size: 22, weight: "600" }); y += 30;
+  drawText(ctx, `ORDER #: ${orderNumber ?? "------"}`, pad, y, { size: 22, weight: "600" }); y += 30;
 
-  const imgs = await Promise.all(shots.map(loadImage));
+  y += 10;
+  drawDashedLine(ctx, pad, y, W - pad); y += 35;
 
-  if (requiredShots === 1) {
-    drawCover(ctx, imgs[0], photoX, photoY, photoW, photoH);
-  } else if (requiredShots === 2) {
-    const gap = 20;
-    const hEach = (photoH - gap) / 2;
-    drawCover(ctx, imgs[0], photoX, photoY, photoW, hEach);
-    drawCover(ctx, imgs[1], photoX, photoY + hEach + gap, photoW, hEach);
-  } else if (requiredShots === 4) {
-    const gap = 20;
-    const wEach = (photoW - gap) / 2;
-    const hEach = (photoH - gap) / 2;
-    drawCover(ctx, imgs[0], photoX, photoY, wEach, hEach);
-    drawCover(ctx, imgs[1], photoX + wEach + gap, photoY, wEach, hEach);
-    drawCover(ctx, imgs[2], photoX, photoY + hEach + gap, wEach, hEach);
-    drawCover(ctx, imgs[3], photoX + wEach + gap, photoY + hEach + gap, wEach, hEach);
-  } else {
-    drawCover(ctx, imgs[0], photoX, photoY, photoW, photoH);
+  // Fun line items
+  const items = [
+    ["SOJU ROUND", "1", "12.00"],
+    ["TTEOKBOKKI", "1", "9.00"],
+    ["KBBQ VIBES", "1", "0.00"],
+    ["BIRTHDAY TAX", "1", "31.00"],
+  ];
+
+  drawText(ctx, "ITEM             QTY     PRICE", pad, y, { size: 22, weight: "800" }); y += 30;
+
+  for (const [name, qty, price] of items) {
+    const left = name.padEnd(16, " ");
+    const mid = qty.toString().padStart(3, " ");
+    const right = price.toString().padStart(8, " ");
+    drawText(ctx, `${left}  ${mid}  ${right}`, pad, y, { size: 22, weight: "600" });
+    y += 28;
   }
 
-  // Footer
-  ctx.fillStyle = "#111827";
-  ctx.font = "600 26px system-ui";
-  ctx.fillText(new Date().toLocaleString(), pad, H - 70);
+  y += 10;
+  drawDashedLine(ctx, pad, y, W - pad); y += 40;
 
-  ctx.fillStyle = "#6b7280";
-  ctx.font = "500 22px system-ui";
-  ctx.fillText("Made with ❤️ for Tiff", pad, H - 35);
+  // ---- Photo strip area (use your existing layout logic here) ----
+  // Define a photo box region:
+  const photoBoxX = pad;
+  const photoBoxY = y;
+  const photoBoxW = W - pad * 2;
+  const photoBoxH = 850; // main photo area height
+
+  // load images
+  const imgs = await Promise.all(shots.map(loadImage));
+
+  // draw photos into photoBox region (reuse your 1/2/4 logic)
+  if (requiredShots === 1) {
+    drawCover(ctx, imgs[0], photoBoxX, photoBoxY, photoBoxW, photoBoxH);
+  } else if (requiredShots === 2) {
+    const gap = 20;
+    const hEach = (photoBoxH - gap) / 2;
+    drawCover(ctx, imgs[0], photoBoxX, photoBoxY, photoBoxW, hEach);
+    drawCover(ctx, imgs[1], photoBoxX, photoBoxY + hEach + gap, photoBoxW, hEach);
+  } else if (requiredShots === 4) {
+    const gap = 20;
+    const wEach = (photoBoxW - gap) / 2;
+    const hEach = (photoBoxH - gap) / 2;
+    drawCover(ctx, imgs[0], photoBoxX, photoBoxY, wEach, hEach);
+    drawCover(ctx, imgs[1], photoBoxX + wEach + gap, photoBoxY, wEach, hEach);
+    drawCover(ctx, imgs[2], photoBoxX, photoBoxY + hEach + gap, wEach, hEach);
+    drawCover(ctx, imgs[3], photoBoxX + wEach + gap, photoBoxY + hEach + gap, wEach, hEach);
+  } else {
+    drawCover(ctx, imgs[0], photoBoxX, photoBoxY, photoBoxW, photoBoxH);
+  }
+
+  y = photoBoxY + photoBoxH + 40;
+  drawDashedLine(ctx, pad, y, W - pad); y += 40;
+
+  // Total
+  drawText(ctx, "TOTAL".padEnd(22, " ") + "$52.00", pad, y, { size: 26, weight: "900" }); y += 40;
+  drawText(ctx, "THANK YOU FOR CELEBRATING!", pad, y, { size: 22, weight: "700" }); y += 30;
+
+  // QR (placeholder link for now)
+  const shareUrl = `${location.origin}${import.meta.env.BASE_URL}?order=${orderNumber}`;
+  const qrDataUrl = await QRCode.toDataURL(shareUrl, { margin: 1, width: 220 });
+
+  const qrImg = await loadImage(qrDataUrl);
+  ctx.drawImage(qrImg, W - pad - 220, y, 220, 220);
+
+  drawText(ctx, "SCAN TO OPEN ORDER", pad, y + 40, { size: 22, weight: "800" });
+  drawText(ctx, "Save happens after upload step", pad, y + 70, { size: 18, weight: "600", color: "#6b7280" });
 
   return canvas.toDataURL("image/jpeg", 0.92);
 }
