@@ -128,6 +128,99 @@ function lanternSet() {
   `;
 }
 
+// Red panda SVG in neon line style with natural colors
+let pandaUid = 0;
+function redPandaHtml() {
+  pandaUid += 1;
+  const uid = `panda_${pandaUid}`;
+  // Colors matching the red panda drawing: reddish-orange, darker brown, white, black
+  const redOrange = "#ff6b35"; // Vibrant reddish-orange for head/back
+  const darkBrown = "#cc4125"; // Darker reddish-brown for underbelly/legs/face
+  const whiteGlow = "#ffffff"; // White for face patches
+  const black = "#000000"; // Black for eyes/nose
+  
+  return `
+    <div class="red-panda" style="position: absolute; bottom: 12%; left: 0; z-index: 2; pointer-events: none;">
+      <svg width="100" height="90" viewBox="0 0 100 90" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <defs>
+          <filter id="panda-glow-red-${uid}" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
+            <feMerge>
+              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+          <filter id="panda-glow-white-${uid}" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
+            <feMerge>
+              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        
+        <!-- Red panda in neon line style with natural colors -->
+        <!-- Head (reddish-orange) -->
+        <path d="M 50 20 Q 65 20, 70 30 Q 70 40, 65 45 Q 50 50, 35 45 Q 30 40, 30 30 Q 30 20, 50 20" 
+              fill="${redOrange}" fill-opacity="0.15" stroke="${redOrange}" stroke-width="2" filter="url(#panda-glow-red-${uid})" />
+        <!-- Face section (darker brown) -->
+        <path d="M 40 30 Q 50 35, 60 30 Q 60 42, 50 45 Q 40 42, 40 30" 
+              fill="${darkBrown}" fill-opacity="0.2" stroke="${darkBrown}" stroke-width="1.8" filter="url(#panda-glow-red-${uid})" />
+        <!-- Left ear (rounded, positioned on side of head) -->
+        <path d="M 38 18 Q 35 15, 32 18 Q 32 22, 35 25 Q 38 25, 40 22 Z" 
+              fill="${redOrange}" fill-opacity="0.15" stroke="${redOrange}" stroke-width="1.5" filter="url(#panda-glow-red-${uid})" />
+        <ellipse cx="36" cy="21" rx="2.5" ry="3" fill="${whiteGlow}" fill-opacity="0.3" stroke="${whiteGlow}" stroke-width="1" filter="url(#panda-glow-white-${uid})" />
+        <!-- Right ear (rounded, positioned on side of head) -->
+        <path d="M 62 18 Q 65 15, 68 18 Q 68 22, 65 25 Q 62 25, 60 22 Z" 
+              fill="${redOrange}" fill-opacity="0.15" stroke="${redOrange}" stroke-width="1.5" filter="url(#panda-glow-red-${uid})" />
+        <ellipse cx="64" cy="21" rx="2.5" ry="3" fill="${whiteGlow}" fill-opacity="0.3" stroke="${whiteGlow}" stroke-width="1" filter="url(#panda-glow-white-${uid})" />
+        <!-- Body (reddish-orange top, darker brown bottom) -->
+        <path d="M 35 50 Q 30 50, 30 55 L 30 70 Q 30 75, 35 75 L 65 75 Q 70 75, 70 70 L 70 55 Q 70 50, 65 50 Z" 
+              fill="${redOrange}" fill-opacity="0.15" stroke="${redOrange}" stroke-width="2" filter="url(#panda-glow-red-${uid})" />
+        <path d="M 35 60 L 65 60 L 65 75 L 35 75 Z" 
+              fill="${darkBrown}" fill-opacity="0.2" stroke="${darkBrown}" stroke-width="1.5" filter="url(#panda-glow-red-${uid})" />
+        <!-- Fluffy tail with striped pattern (bushy, filled shape) -->
+        <!-- Tail base (wider, connects to body) -->
+        <ellipse cx="30" cy="65" rx="6" ry="4" fill="${redOrange}" fill-opacity="0.2" stroke="${redOrange}" stroke-width="2" filter="url(#panda-glow-red-${uid})" transform="rotate(-10 30 65)" />
+        <!-- Tail main body (curved, fluffy shape) -->
+        <path d="M 26 63 Q 15 58, 10 50 Q 6 42, 7 34 Q 9 26, 14 20 Q 18 16, 22 18" 
+              fill="${redOrange}" fill-opacity="0.2" stroke="${redOrange}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" />
+        <!-- Fluffy tail outline (wider, more voluminous) -->
+        <path d="M 34 63 Q 18 56, 12 46 Q 8 38, 9 30 Q 11 22, 16 18 Q 20 14, 24 16" 
+              fill="none" stroke="${redOrange}" stroke-width="2" stroke-opacity="0.6" filter="url(#panda-glow-red-${uid})" />
+        <!-- Tail stripes as bands (darker brown rings - more prominent) -->
+        <!-- First stripe band (near base) -->
+        <ellipse cx="22" cy="61" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-12 22 61)" />
+        <!-- Second stripe band -->
+        <ellipse cx="17" cy="56" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-18 17 56)" />
+        <!-- Third stripe band -->
+        <ellipse cx="13" cy="50" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-24 13 50)" />
+        <!-- Fourth stripe band -->
+        <ellipse cx="10" cy="43" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-28 10 43)" />
+        <!-- Fifth stripe band -->
+        <ellipse cx="8" cy="36" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-32 8 36)" />
+        <!-- Sixth stripe band -->
+        <ellipse cx="8" cy="29" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-36 8 29)" />
+        <!-- Seventh stripe band (near tip) -->
+        <ellipse cx="11" cy="23" rx="5" ry="3.5" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-40 11 23)" />
+        <!-- Face features (black eyes with white outline only) -->
+        <ellipse cx="46" cy="32" rx="3" ry="2.5" fill="${whiteGlow}" fill-opacity="0.3" stroke="${whiteGlow}" stroke-width="1.5" filter="url(#panda-glow-white-${uid})" />
+        <ellipse cx="54" cy="32" rx="3" ry="2.5" fill="${whiteGlow}" fill-opacity="0.3" stroke="${whiteGlow}" stroke-width="1.5" filter="url(#panda-glow-white-${uid})" />
+        <circle cx="46" cy="32" r="2" fill="${black}" fill-opacity="0.9" filter="url(#panda-glow-red-${uid})" />
+        <circle cx="54" cy="32" r="2" fill="${black}" fill-opacity="0.9" filter="url(#panda-glow-red-${uid})" />
+        <!-- Nose (small triangle/ellipse) -->
+        <ellipse cx="50" cy="37" rx="1.5" ry="1" fill="${black}" fill-opacity="0.8" filter="url(#panda-glow-red-${uid})" />
+        <!-- Mouth (subtle upward-curving smile) -->
+        <path d="M 47 39 Q 50 40.5, 53 39" 
+              stroke="${black}" stroke-width="1.5" fill="none" stroke-linecap="round" filter="url(#panda-glow-red-${uid})" />
+        <!-- Front legs (darker brown) -->
+        <ellipse cx="42" cy="68" rx="3" ry="6" fill="${darkBrown}" fill-opacity="0.2" stroke="${darkBrown}" stroke-width="1.5" filter="url(#panda-glow-red-${uid})" />
+        <ellipse cx="58" cy="68" rx="3" ry="6" fill="${darkBrown}" fill-opacity="0.2" stroke="${darkBrown}" stroke-width="1.5" filter="url(#panda-glow-red-${uid})" />
+      </svg>
+    </div>
+  `;
+}
+
 // Initialize persistent lantern container that never gets destroyed
 function initPersistentLanterns() {
   // Create persistent container if it doesn't exist
@@ -138,6 +231,9 @@ function initPersistentLanterns() {
     
     // Create lanterns once
     lanternContainer.insertAdjacentHTML('beforeend', lanternSet());
+    
+    // Add red panda
+    lanternContainer.insertAdjacentHTML('beforeend', redPandaHtml());
     
     // Append to body (outside app) so it persists across all page changes
     document.body.appendChild(lanternContainer);
@@ -235,13 +331,10 @@ function renderStart() {
           <span class="line2">POCHA</span>
         </h1>
 
-        <p class="neon-subtitle">
-          Experience the electric pulse of the city that never sleeps.
-          Strike a pose, make memories, and take home your Pocha party moments.
-        </p>
+        </br></br>
 
         <button class="neon-cta" id="startBtn">
-          ENTER THE NIGHT <span aria-hidden="true">→</span>
+          START ORDER <span aria-hidden="true">→</span>
         </button>
       </div>
     </div>
@@ -283,7 +376,7 @@ function renderTemplateSelect() {
         <div class="templateGrid">${cardsHtml}</div>
       </div>
     `,
-    footerLeftHtml: `<div class="small">Tip: iPad landscape is best.</div>`,
+    // footerLeftHtml: `<div class="small">Tip: iPad landscape is best.</div>`,
     footerRightHtml: `
       <button id="backBtn">Back</button>
       <button class="neon-primary" id="confirmBtn" ${selectedTemplateId ? "" : "disabled"}>Confirm</button>
@@ -339,10 +432,10 @@ function renderCamera() {
   const needsStart = auto && !autoArmed && shots.length === 0;
 
   renderNeonShell({
-    topRightHtml: `<div class="badge">Shot <b>${shots.length + 1}</b> of <b>${requiredShots}</b></div>`,
+    topRightHtml: `<div class="badge" id="shotBadge">Shot <b>${shots.length + 1}</b> of <b>${requiredShots}</b></div>`,
     stageHtml: `
       <div class="cameraCard" style="opacity: 0;">
-        <video class="video" id="video" autoplay playsinline style="opacity: 0;"></video>
+        <video class="video" id="video" autoplay playsinline webkit-playsinline muted disablepictureinpicture style="opacity: 0;"></video>
         <div class="overlay" id="countdown" style="display:none;"></div>
         <div class="flash" id="flash" style="display:none;">Nice!</div>
         <div class="status" id="status" style="display:${needsStart ? "grid" : "none"};">
@@ -366,6 +459,19 @@ function renderCamera() {
 
   const video = document.querySelector("#video");
   const cameraCard = document.querySelector(".cameraCard");
+  // iPad Safari: ensure autoplay stays reliable across re-renders
+  if (video) {
+    video.muted = true;
+    video.playsInline = true;
+    try { video.disablePictureInPicture = true; } catch {}
+    // Do not show controls (Safari may still show transient overlay if paused)
+    video.controls = false;
+    video.removeAttribute("controls");
+    video.setAttribute("controlslist", "nodownload noplaybackrate noremoteplayback");
+    video.setAttribute("disableremoteplayback", "");
+    // Prevent taps from toggling Safari's native play/pause UI
+    video.style.pointerEvents = "none";
+  }
   
   // Update video preview to match video aspect ratio exactly (no black bars)
   const updateVideoAspect = () => {
@@ -389,19 +495,38 @@ function renderCamera() {
       // Use object-fit: contain to show full video without cropping
       // Since container aspect ratio matches video, there will be no black bars
       video.style.objectFit = "contain";
-      
-      // Fade in smoothly once aspect ratio is set
-      requestAnimationFrame(() => {
-        cameraCard.style.transition = "opacity 0.2s ease-in";
-        video.style.transition = "opacity 0.2s ease-in";
-        cameraCard.style.opacity = "1";
-        video.style.opacity = "1";
-      });
     }
   };
 
   // Attach stream after setting up the update handler
   video.srcObject = stream;
+  // Aggressively keep playback running so iOS never shows the pause/play overlay.
+  // If Safari pauses the video during load or re-render, immediately resume.
+  const keepPlaying = () => {
+    if (!video) return;
+    if (video.paused) {
+      try { video.play(); } catch {}
+    }
+  };
+  video.addEventListener("pause", keepPlaying);
+  video.addEventListener("ended", keepPlaying);
+
+  // Only fade in once we are actually playing (prevents the initial overlay flash).
+  const onPlaying = () => {
+    video.removeEventListener("playing", onPlaying);
+    requestAnimationFrame(() => {
+      if (cameraCard) cameraCard.style.transition = "opacity 0.2s ease-in";
+      video.style.transition = "opacity 0.2s ease-in";
+      if (cameraCard) cameraCard.style.opacity = "1";
+      video.style.opacity = "1";
+    });
+  };
+  video.addEventListener("playing", onPlaying);
+
+  // Kick playback immediately (and again shortly after) to survive iOS timing quirks
+  try { video.play(); } catch {}
+  setTimeout(keepPlaying, 0);
+  setTimeout(keepPlaying, 200);
 
   // Update when video metadata loads
   video.addEventListener("loadedmetadata", updateVideoAspect);
@@ -522,6 +647,22 @@ async function captureWithCountdown(videoEl, tokenFromRender) {
 
     // Next shot
     if (shots.length < requiredShots) {
+      const auto = isAutoMode();
+
+      // For auto (2+ shots), do NOT re-render the camera UI between shots.
+      // Re-rendering causes iPad Safari to briefly show its native play/pause overlay.
+      if (auto) {
+        // Update badge for next shot
+        const badge = document.querySelector("#shotBadge");
+        if (badge) badge.innerHTML = `Shot <b>${shots.length + 1}</b> of <b>${requiredShots}</b>`;
+
+        isCapturing = false;
+        // Small delay so the UI can settle before next countdown
+        setTimeout(() => captureWithCountdown(videoEl, myToken), 200);
+        return;
+      }
+
+      // For manual mode (1 shot), fall back to re-render (shouldn't happen anyway)
       isCapturing = false;
       renderCamera();
       return;
@@ -628,11 +769,15 @@ async function buildCompositeDataUrl() {
   y += 36; // Scaled from 12
 
   const items = [
-    ["FRIED CHICKEN", "1", "18.50"],
-    ["TTEOKBOKKI", "1", "16.25"],
-    ["DYNAMITE CITRUS SPRITZ", "1", "20.44"],
-    ["KOGI DOG", "1", "14.50"],
+    ["FRIED CHICKEN", "1", "8.49"],
+    ["TTEOKBOKKI", "1", "7.25"],
+    ["DYNAMITE SPRITZ", "1", "6.96"],
+    ["KOGI DOG", "1", "8.99"],
   ];
+
+  // Calculate total from items
+  const total = items.reduce((sum, [, , price]) => sum + parseFloat(price), 0);
+  const totalStr = total.toFixed(2);
 
   drawText(ctx, "ITEM             QTY     PRICE", pad, y, { size: 24, weight: "800" }); // Scaled from 8
   y += 30; // Scaled from 10
@@ -698,7 +843,7 @@ async function buildCompositeDataUrl() {
   drawDashedLine(ctx, pad, y, W - pad);
   y += 36; // Scaled from 12
 
-  drawText(ctx, "TOTAL".padEnd(22, " ") + "$69.69", pad, y, { size: 30, weight: "900" }); // Scaled from 10
+  drawText(ctx, "TOTAL".padEnd(22, " ") + `$${totalStr}`, pad, y, { size: 30, weight: "900" }); // Scaled from 10
   y += 36; // Scaled from 12
   drawText(ctx, "THANK YOU FOR CELEBRATING!", pad, y, { size: 27, weight: "700" }); // Scaled from 9
   y += 45; // Scaled from 15
@@ -780,6 +925,45 @@ async function renderFinalCompositePreview() {
       footerRightHtml: `<button class="neon-primary" id="restartBtn">Start Over</button>`,
     });
     document.querySelector("#restartBtn").addEventListener("click", resetOrder);
+    return;
+  }
+
+  // Save immediately so the QR/share link works BEFORE Print
+  renderNeonShell({
+    topRightHtml: `<div class="badge">Saving</div>`,
+    stageHtml: `
+      <div class="neon-card" style="text-align:center;">
+        <h2>Saving...</h2>
+        <div class="hint">Preparing your QR download link.</div>
+        <div style="margin-top:12px; font-size:34px;">🧾</div>
+      </div>
+    `,
+    footerRightHtml: `<button id="cancelBtn">Cancel</button>`,
+  });
+
+  document.querySelector("#cancelBtn")?.addEventListener("click", resetOrder);
+
+  try {
+    // This endpoint already saves on the Mac; printing can remain a later step.
+    await sendToMacAndPrint(compositeDataUrl);
+  } catch (e) {
+    renderNeonShell({
+      topRightHtml: `<div class="badge">Error</div>`,
+      stageHtml: `
+        <div class="neon-card">
+          <h2>Could not save image</h2>
+          <div class="hint">${escapeHtml(String(e))}</div>
+          <div class="hint">Without saving, the QR link won't work yet.</div>
+        </div>
+      `,
+      footerRightHtml: `
+        <button id="retrySaveBtn">Retry</button>
+        <button class="neon-primary" id="backToPreviewBtn">Continue anyway</button>
+      `,
+    });
+
+    document.querySelector("#retrySaveBtn")?.addEventListener("click", () => renderFinalCompositePreview());
+    document.querySelector("#backToPreviewBtn")?.addEventListener("click", () => showPreview(compositeDataUrl));
     return;
   }
 

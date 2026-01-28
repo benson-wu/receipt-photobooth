@@ -611,3 +611,61 @@ button:disabled {
   display: block;
   margin-top: var(--string, 160px);
 }
+
+/* -----------------------------------------------------------
+   Animated Red Panda (runs side to side, pauses, stares, repeats)
+----------------------------------------------------------- */
+
+@keyframes redPandaRun {
+  /* Run left to right (0-32%) */
+  0% {
+    transform: translateX(0) scaleX(1);
+  }
+  32% {
+    transform: translateX(calc(100vw - 100px)) scaleX(1);
+  }
+  /* Pause and stare at right (32-44%) */
+  32%, 44% {
+    transform: translateX(calc(100vw - 100px)) scaleX(1);
+  }
+  /* Turn around (44-49%) */
+  44%, 49% {
+    transform: translateX(calc(100vw - 100px)) scaleX(-1);
+  }
+  /* Run right to left (49-79%) */
+  49%, 79% {
+    transform: translateX(0) scaleX(-1);
+  }
+  /* Pause and stare at left (79-91%) */
+  79%, 91% {
+    transform: translateX(0) scaleX(-1);
+  }
+  /* Turn around (91-100%) */
+  91%, 100% {
+    transform: translateX(0) scaleX(1);
+  }
+}
+
+@keyframes redPandaStare {
+  0%, 100% {
+    transform: scale(1) translateY(0);
+  }
+  25% {
+    transform: scale(1.06) translateY(-1px);
+  }
+  50% {
+    transform: scale(1.12) translateY(-2px);
+  }
+  75% {
+    transform: scale(1.06) translateY(-1px);
+  }
+}
+
+.red-panda {
+  animation: redPandaRun 15s ease-in-out infinite;
+}
+
+/* Stare animation runs continuously - more noticeable during pauses */
+.red-panda svg {
+  animation: redPandaStare 1.8s ease-in-out infinite;
+}

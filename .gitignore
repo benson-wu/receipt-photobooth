@@ -11,3 +11,6 @@ node_modules/
 server/node_modules/
 dist/
 .DS_Store
+
+# Local runbook (contains environment-specific info)
+README_LOCAL.md
