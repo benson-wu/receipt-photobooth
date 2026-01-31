@@ -3,6 +3,13 @@ const fs = require("fs");
 const path = require("path");
 const https = require("https");
 const express = require("express");
+const { promisify } = require("util");
+const sharp = require("sharp");
+const getPixels = require("get-pixels");
+const escpos = require("escpos");
+escpos.USB = require("escpos-usb");
+
+const getPixelsAsync = promisify(getPixels);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -22,6 +29,56 @@ const KEY_PATH = path.join(__dirname, "certs", "key.pem");
 // Where we save images on the Mac:
 const SAVED_DIR = path.join(__dirname, "saved");
 fs.mkdirSync(SAVED_DIR, { recursive: true });
+
+// 80mm thermal receipt printable width in pixels (RP80: 48 chars = 384px avoids bleed)
+const THERMAL_WIDTH_PX = 384;
+
+/**
+ * Send image buffer to the first connected USB thermal printer (ESC/POS).
+ * Resizes to THERMAL_WIDTH_PX, converts to 1-bit B&W for thermal, then prints.
+ */
+async function printToThermal(imageBuffer) {
+  let device = null;
+  try {
+    const devices = escpos.USB.findPrinter();
+    if (!devices || devices.length === 0) {
+      return { printed: false, error: "No USB printer found" };
+    }
+    device = new escpos.USB(devices[0]);
+    await new Promise((resolve, reject) => {
+      device.open((err) => (err ? reject(err) : resolve()));
+    });
+    const printer = await escpos.Printer.create(device);
+
+    // Resize, grayscale, lighten, then Floyd-Steinberg dither for gray tones
+    // (thermal printers are 1-bit; dithering simulates gray and shows detail)
+    const bwPng = await sharp(imageBuffer)
+      .resize(THERMAL_WIDTH_PX, null, { withoutEnlargement: true })
+      .greyscale()
+      .normalize()
+      .linear(1, 45)
+      .png({ colours: 2, dither: 1 })
+      .toBuffer();
+    const pixels = await getPixelsAsync(bwPng, "image/png");
+    const escposImage = new escpos.Image(pixels);
+
+    printer.align("ct").raster(escposImage, "dwdh").feed(2).cut();
+    await new Promise((resolve, reject) => {
+      printer.flush((err) => (err ? reject(err) : resolve()));
+    });
+    await new Promise((resolve, reject) => {
+      device.close((err) => (err ? reject(err) : resolve()));
+    });
+    return { printed: true };
+  } catch (e) {
+    if (device) {
+      try {
+        device.close(() => {});
+      } catch (_) {}
+    }
+    return { printed: false, error: e && e.message ? e.message : String(e) };
+  }
+}
 
 // -------------------- Middleware --------------------
 app.use(express.json({ limit: "25mb" }));
@@ -48,10 +105,10 @@ app.get("/api/config", (req, res) => {
   res.json({ publicBaseUrl: PUBLIC_BASE_URL });
 });
 
-// Save + (later) print
+// Save and optionally print (print only when user presses Print button)
 app.post("/api/print", async (req, res) => {
   try {
-    const { orderNumber, imageDataUrl } = req.body || {};
+    const { orderNumber, imageDataUrl, print: shouldPrint } = req.body || {};
     if (!imageDataUrl) return res.status(400).send("Missing imageDataUrl");
 
     // Extract base64 from data URL
@@ -73,10 +130,26 @@ app.post("/api/print", async (req, res) => {
     fs.writeFileSync(filepath, buf);
     console.log("✅ Saved image:", filepath, `(${buf.length} bytes)`);
 
+    let printResult = { printed: false, error: undefined };
+    if (shouldPrint === true) {
+      printResult = await printToThermal(buf);
+      if (printResult.printed) {
+        console.log("✅ Printed to thermal printer");
+      } else {
+        console.warn("⚠️ Print skipped or failed:", printResult.error);
+      }
+    }
+
     const base = getBaseUrl(req);
     const shareUrl = `${base}/share/${safeOrder}`;
 
-    res.json({ ok: true, savedAs: filename, shareUrl });
+    res.json({
+      ok: true,
+      savedAs: filename,
+      shareUrl,
+      printed: printResult.printed,
+      printError: printResult.error || undefined,
+    });
   } catch (e) {
     console.error("Print error:", e);
     res.status(500).send(String(e?.message ?? e));

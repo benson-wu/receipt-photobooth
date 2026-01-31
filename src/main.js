@@ -720,9 +720,9 @@ function drawText(ctx, text, x, y, opts = {}) {
 
 function drawDashedLine(ctx, x1, y, x2) {
   ctx.save();
-  ctx.setLineDash([10, 8]);
+  ctx.setLineDash([4, 3]);
   ctx.strokeStyle = "#111827";
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(x1, y);
   ctx.lineTo(x2, y);
@@ -731,42 +731,38 @@ function drawDashedLine(ctx, x1, y, x2) {
 }
 
 // -------------------- Build receipt composite --------------------
+// 80mm thermal paper: 384px width matches RP80 printable area (48 chars × 8 dots)
+// Preview and print use the same dimensions so WYSIWYG
+const RECEIPT_WIDTH_PX = 384;
+
 async function buildCompositeDataUrl() {
-  // 80mm thermal printer width: render at higher resolution for better quality
-  // 80mm at 203 DPI (typical thermal printer) = ~640px, but we'll use 900px for crisp rendering
-  // The server can scale down to actual printer resolution when printing
-  const W = 900;
-  const H = 1750; // Increased to accommodate buffer space below QR code (will grow as needed)
+  const W = RECEIPT_WIDTH_PX;
 
   const dtStr = (orderDate ?? new Date()).toLocaleString();
   const orderStr = orderNumber ?? "------";
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
-  canvas.height = 3000; // Start with large height, will be trimmed at the end
+  canvas.height = 3000; // Start large; trimmed to final height
   const ctx = canvas.getContext("2d");
 
-  // Fill the entire canvas with white background
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, 3000);
 
-  // Scale padding and text sizes proportionally for higher resolution
-  const pad = 36; // Scaled up from 12 (3x)
-  let y = 60; // Scaled up from 20
+  const pad = 15;
+  let y = 26;
 
-  drawText(ctx, "TIFF'S 31ST POCHA", pad, y, { size: 42, weight: "900" }); // Scaled from 14
-  y += 36; // Scaled from 12
-  // drawText(ctx, "Tiff's Birthday Edition", pad, y, { size: 30, weight: "700" }); // Scaled from 10
-  // y += 36; // Scaled from 12
+  drawText(ctx, "TIFF'S 31ST POCHA", pad, y, { size: 18, weight: "900" });
+  y += 15;
 
-  drawText(ctx, `DATE: ${dtStr}`, pad, y, { size: 27, weight: "600" }); // Scaled from 9
-  y += 30; // Scaled from 10
-  drawText(ctx, `ORDER #: ${orderStr}`, pad, y, { size: 27, weight: "600" }); // Scaled from 9
-  y += 30; // Scaled from 10
+  drawText(ctx, `DATE: ${dtStr}`, pad, y, { size: 11, weight: "600" });
+  y += 13;
+  drawText(ctx, `ORDER #: ${orderStr}`, pad, y, { size: 11, weight: "600" });
+  y += 13;
 
-  y += 15; // Scaled from 5
+  y += 6;
   drawDashedLine(ctx, pad, y, W - pad);
-  y += 36; // Scaled from 12
+  y += 15;
 
   const items = [
     ["FRIED CHICKEN", "1", "8.49"],
@@ -779,20 +775,20 @@ async function buildCompositeDataUrl() {
   const total = items.reduce((sum, [, , price]) => sum + parseFloat(price), 0);
   const totalStr = total.toFixed(2);
 
-  drawText(ctx, "ITEM             QTY     PRICE", pad, y, { size: 24, weight: "800" }); // Scaled from 8
-  y += 30; // Scaled from 10
+  drawText(ctx, "ITEM             QTY     PRICE", pad, y, { size: 10, weight: "800" });
+  y += 13;
 
   for (const [name, qty, price] of items) {
     const left = String(name).padEnd(16, " ");
     const mid = String(qty).padStart(3, " ");
     const right = String(price).padStart(8, " ");
-    drawText(ctx, `${left}  ${mid}  ${right}`, pad, y, { size: 24, weight: "600" }); // Scaled from 8
-    y += 27; // Scaled from 9
+    drawText(ctx, `${left}  ${mid}  ${right}`, pad, y, { size: 10, weight: "600" });
+    y += 11;
   }
 
-  y += 15; // Scaled from 5
+  y += 6;
   drawDashedLine(ctx, pad, y, W - pad);
-  y += 36; // Scaled from 12
+  y += 15;
 
   const photoBoxX = pad;
   const photoBoxY = y;
@@ -809,8 +805,7 @@ async function buildCompositeDataUrl() {
     photoBoxH = photoBoxW / imgAspect;
     drawCover(ctx, imgs[0], photoBoxX, photoBoxY, photoBoxW, photoBoxH);
   } else if (requiredShots === 2 && imgs.length >= 2) {
-    // Two photos: vertical stack (photo strip layout)
-    const gap = 12; // Scaled from 4
+    const gap = 5;
     // Calculate height for each photo based on aspect ratio
     const imgAspect = imgs[0].width / imgs[0].height;
     const hEach = photoBoxW / imgAspect;
@@ -818,8 +813,7 @@ async function buildCompositeDataUrl() {
     drawCover(ctx, imgs[0], photoBoxX, photoBoxY, photoBoxW, hEach);
     drawCover(ctx, imgs[1], photoBoxX, photoBoxY + hEach + gap, photoBoxW, hEach);
   } else if (requiredShots === 4 && imgs.length >= 4) {
-    // Four photos: 2x2 grid
-    const gap = 12; // Scaled from 4
+    const gap = 5;
     const wEach = (photoBoxW - gap) / 2;
     const imgAspect = imgs[0].width / imgs[0].height;
     const hEach = wEach / imgAspect;
@@ -834,45 +828,39 @@ async function buildCompositeDataUrl() {
     drawCover(ctx, imgs[0], photoBoxX, photoBoxY, photoBoxW, photoBoxH);
   }
 
-  // Ensure photoBoxH is valid (fallback if no images)
   if (photoBoxH === 0) {
-    photoBoxH = 600; // Default height if no photos (scaled from 200)
+    photoBoxH = 256;
   }
 
-  y = photoBoxY + photoBoxH + 36; // Scaled from 12
+  y = photoBoxY + photoBoxH + 15;
   drawDashedLine(ctx, pad, y, W - pad);
-  y += 36; // Scaled from 12
+  y += 15;
 
-  drawText(ctx, "TOTAL".padEnd(22, " ") + `$${totalStr}`, pad, y, { size: 30, weight: "900" }); // Scaled from 10
-  y += 36; // Scaled from 12
-  drawText(ctx, "THANK YOU FOR CELEBRATING!", pad, y, { size: 27, weight: "700" }); // Scaled from 9
-  y += 45; // Scaled from 15
+  drawText(ctx, "TOTAL".padEnd(22, " ") + `$${totalStr}`, pad, y, { size: 13, weight: "900" });
+  y += 15;
+  drawText(ctx, "THANK YOU FOR CELEBRATING!", pad, y, { size: 11, weight: "700" });
+  y += 19;
 
   const base = await getPublicBaseUrl();
   const shareUrl = `${base}/share/${orderNumber}`;
 
-  // Scale QR code proportionally (larger for higher resolution)
-  const qrSize = 240; // Scaled from 80 (3x)
+  const qrSize = 96; // Multiple of 8 for thermal printer byte alignment
   const qrDataUrl = await QRCode.toDataURL(shareUrl, { margin: 1, width: qrSize });
   const qrImg = await loadImage(qrDataUrl);
 
-  // Center the QR code horizontally
-  const qrX = (W - qrSize) / 2;
+  const centerX = W / 2;
+  const qrX = Math.floor(centerX - qrSize / 2);
   ctx.drawImage(qrImg, qrX, y, qrSize, qrSize);
   y += qrSize;
 
-  // Center "SCAN TO DOWNLOAD" text below QR code
   const scanText = "SCAN TO DOWNLOAD";
-  ctx.font = "800 24px ui-monospace, SFMono-Regular, Menlo, monospace"; // Scaled from 8
+  ctx.font = "800 10px ui-monospace, SFMono-Regular, Menlo, monospace";
   const scanTextWidth = ctx.measureText(scanText).width;
-  const scanTextX = (W - scanTextWidth) / 2;
-  // Draw text with some spacing below QR code
-  y += 24; // Space between QR code and text (scaled from 8)
-  drawText(ctx, scanText, scanTextX, y, { size: 24, weight: "800" }); // Scaled from 8
-  
-  // Add significant white space buffer below text (before bottom of receipt)
-  y += 36; // Space for text height (scaled from 12)
-  y += 60; // Buffer space below QR code section (scaled from 20)
+  const scanTextX = Math.floor(centerX - scanTextWidth / 2);
+  y += 10;
+  drawText(ctx, scanText, scanTextX, y, { size: 10, weight: "800" });
+  y += 15;
+  y += 26;
 
   // Create a new canvas with the correct final height and copy the content
   const finalCanvas = document.createElement("canvas");
@@ -890,14 +878,15 @@ async function buildCompositeDataUrl() {
   return finalCanvas.toDataURL("image/jpeg", 0.92);
 }
 
-// -------------------- Print (send to Mac) --------------------
-async function sendToMacAndPrint(compositeDataUrl) {
+// -------------------- Save / Print (send to Mac) --------------------
+async function sendToMacAndPrint(compositeDataUrl, { print = true } = {}) {
   const res = await fetch("/api/print", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       orderNumber: orderNumber ?? "------",
       imageDataUrl: compositeDataUrl,
+      print,
     }),
   });
 
@@ -944,8 +933,8 @@ async function renderFinalCompositePreview() {
   document.querySelector("#cancelBtn")?.addEventListener("click", resetOrder);
 
   try {
-    // This endpoint already saves on the Mac; printing can remain a later step.
-    await sendToMacAndPrint(compositeDataUrl);
+    // Save only; printing happens when user presses Print
+    await sendToMacAndPrint(compositeDataUrl, { print: false });
   } catch (e) {
     renderNeonShell({
       topRightHtml: `<div class="badge">Error</div>`,
@@ -1059,16 +1048,25 @@ async function doPrint(compositeDataUrl) {
   try {
     const result = await sendToMacAndPrint(compositeDataUrl);
     const shareUrl = result?.shareUrl;
+    const printed = result?.printed === true;
+    const printError = result?.printError;
+
+    const title = printed ? "✅ Printed!" : "Saved";
+    const subHint = printed
+      ? "Resetting for next guest..."
+      : "Printer unavailable — check USB and try again. Resetting for next guest...";
+    const errHint = printError ? `<div class="hint" style="color:var(--hint);font-size:0.9em;">${escapeHtml(printError)}</div>` : "";
 
     renderNeonShell({
       topRightHtml: `<div class="badge">Done</div>`,
       stageHtml: `
         <div class="neon-card" style="text-align:center;">
-          <h2>✅ Printed!</h2>
+          <h2>${title}</h2>
           <div class="hint">
-            ${shareUrl ? `Saved: <a href="${shareUrl}" target="_blank">${shareUrl}</a>` : `Saved on the Mac`}
+            ${shareUrl ? `Saved: <a href="${shareUrl}" target="_blank">${shareUrl}</a>` : "Saved on the Mac"}
           </div>
-          <div class="hint">Resetting for next guest...</div>
+          ${errHint}
+          <div class="hint">${subHint}</div>
         </div>
       `,
       footerRightHtml: ``,
