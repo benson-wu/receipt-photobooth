@@ -29,9 +29,8 @@ html, body {
   color: var(--text);
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 
-  /* Important: prevent page scroll; only allow inner scroll areas */
+  /* Prevent full-page scroll; inner scroll areas handle their own */
   overflow: hidden;
-  overscroll-behavior: none;
   -webkit-text-size-adjust: 100%;
   touch-action: manipulation;
 }
@@ -55,7 +54,9 @@ a {
 
 .neon-shell {
   position: relative;
-  height: 100svh;
+  display: flex;
+  flex-direction: column;
+  min-height: 100svh;
   width: 100%;
   overflow: hidden;
   background: var(--bg-0);
@@ -107,85 +108,125 @@ a {
   50% { opacity: 0.18; }
 }
 
-/* centered column that fits iPad Safari without page scrolling */
-.neon-wrap {
+/* shell layout: topbar and footer full-bleed, stage in between */
+.neon-topbar {
+  flex-shrink: 0;
   position: relative;
   z-index: 4;
   width: 100%;
-  max-width: 980px;
-  height: 100svh;
-  margin: 0 auto;
-  padding: 18px 16px 18px;
-
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto; /* stage can shrink */
-  gap: 14px;
+  background: rgba(0,0,0,0.45);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
-/* top bar */
-.neon-topbar {
+.neon-topbar-inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.14);
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-  backdrop-filter: blur(10px);
+  gap: 16px;
+  padding: 14px 18px;
+  max-width: 980px;
+  margin: 0 auto;
+  min-height: 24px;
 }
+
+.neon-topbar {
+  overflow: visible;
+}
+
+.neon-stage-wrap {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.neon-footer {
+  flex-shrink: 0;
+  position: relative;
+  z-index: 4;
+  width: 100%;
+  background: rgba(0,0,0,0.45);
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.neon-footer-inner {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 18px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+/* top bar content */
 
 .brand {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .brand .title {
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-size: 17px;
+  color: rgba(255,255,255,0.95);
 }
 
 .brand .sub {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-dim);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
 }
 
 .badge {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: rgba(255,255,255,0.86);
-  background: rgba(0,0,0,0.25);
-  border: 1px solid rgba(255,255,255,0.16);
-  padding: 8px 10px;
-  border-radius: 999px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.6);
+  background: transparent;
+  border: none;
+  padding: 4px 0;
+  border-radius: 0;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
-.badge b { font-weight: 800; }
+.badge b { font-weight: 600; color: rgba(255,255,255,0.9); }
+
+/* Shot badge — prevent clipping, proper spacing */
+.badge--shot {
+  white-space: nowrap;
+  padding: 6px 0;
+  line-height: 1.2;
+  min-height: 1.2em;
+}
 
 /* stage area */
 .neon-stage {
-  min-height: 0;
   width: 100%;
-  display: grid;
-  place-items: center;
+  max-width: 980px;
+  min-height: 0; /* allow shrinking for scroll */
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-/* footer */
-.neon-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-  padding: 12px 14px;
-  border-radius: var(--radius);
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.12);
-  backdrop-filter: blur(10px);
+/* preview stage: fill height so inner scroll works */
+.neon-stage--preview {
+  align-items: stretch;
+  height: 100%;
+}
+
+.neon-stage--preview .preview-screen {
+  width: 100%;
 }
 
 /* -----------------------------------------------------------
@@ -216,29 +257,112 @@ a {
   line-height: 1.35;
 }
 
-/* preview card that scrolls inside (not the page) */
-.previewCard {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 0;
-  max-height: 100%;
+/* layout selection card — mockup style: crisp, editorial, minimal */
+.neon-card.neon-card--layout {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  box-shadow: none;
+  padding: 28px 24px;
+  max-width: 640px;
 }
 
-.previewScroll {
-  flex: 1;
+.neon-card.neon-card--layout h2 {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: rgba(255,255,255,0.98);
+}
+
+.neon-card.neon-card--layout .hint {
+  margin: 0 0 24px;
+  color: rgba(255,255,255,0.55);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* preview screen — scrollable receipt + buttons */
+.preview-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 860px;
+  height: 100%;
   min-height: 0;
-  overflow: auto;
+}
+
+.preview-header {
+  flex-shrink: 0;
+}
+
+/* Scroll: fixed viewport height (reliable on iOS) */
+.preview-scroll-area {
+  position: relative;
+  width: 100%;
+  height: calc(100svh - 200px); /* fixed height so overflow scrolls */
+  overflow-y: scroll;
+  overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  touch-action: pan-y;
+  -webkit-transform: translateZ(0);
+}
+
+.preview-receipt-img {
+  width: 100%;
+  height: auto;
+  display: block;
   border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.14);
   background: #ffffff;
+}
+
+.preview-footer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 16px 0 32px 0;
+}
+
+.previewScroll {
+  flex-shrink: 0;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: #ffffff;
+  overflow: hidden;
 }
 
 .previewScroll img {
   width: 100%;
   height: auto;
   display: block;
+}
+
+.preview-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  align-items: center;
+  position: relative;
+  z-index: 2; /* above scroll area for reliable taps */
+}
+
+.preview-buttons button {
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+}
+
+/* legacy previewCard for other screens if needed */
+.previewCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  max-height: 100%;
 }
 
 /* -----------------------------------------------------------
@@ -274,17 +398,34 @@ button:disabled {
 }
 
 .neon-primary {
-  border: 2px solid rgba(0,255,65,0.85);
-  background: rgba(0,255,65,0.08);
-  box-shadow: 0 0 40px rgba(0,255,65,0.28), inset 0 0 16px rgba(0,255,65,0.20);
-  font-weight: 900;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  border: 1px solid rgba(0,255,65,0.6);
+  background: rgba(0,255,65,0.2);
+  box-shadow: 0 4px 20px rgba(0,255,65,0.25);
+  font-weight: 700;
+  letter-spacing: 0.05em;
 }
 
 .neon-primary:hover {
-  background: rgba(0,255,65,0.12);
-  box-shadow: 0 0 60px rgba(0,255,65,0.45), inset 0 0 22px rgba(0,255,65,0.26);
+  background: rgba(0,255,65,0.3);
+  box-shadow: 0 4px 24px rgba(0,255,65,0.35);
+}
+
+/* text-style button for Back, Cancel (footer) */
+.btn-text {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: rgba(255,255,255,0.7);
+  font-weight: 500;
+  transform: none;
+}
+
+.btn-text:hover {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: rgba(255,255,255,0.95);
+  transform: none;
 }
 
 .small {
@@ -420,47 +561,64 @@ button:disabled {
 }
 
 .templateCard {
-  border-radius: 18px;
-  padding: 14px;
-  border: 1px solid rgba(255,255,255,0.16);
-  background: rgba(0,0,0,0.18);
-  text-align: left;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.35);
-  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  position: relative;
+  border-radius: 4px;
+  padding: 18px 14px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  text-align: center;
+  box-shadow: none;
+  transition: border-color 160ms ease, background 160ms ease;
 }
 
 .templateCard:hover {
-  transform: translateY(-2px);
-  border-color: rgba(255,255,255,0.24);
-  box-shadow: 0 18px 40px rgba(0,0,0,0.48);
+  border-color: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.05);
 }
 
 .templateCard.selected {
-  border-color: rgba(0,255,65,0.85);
-  box-shadow: 0 0 40px rgba(0,255,65,0.20), 0 18px 40px rgba(0,0,0,0.52);
+  border-color: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.06);
+  box-shadow: none;
+}
+
+.templateCard.selected::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(0,255,65,0.9);
+  border-radius: 0;
 }
 
 .templateThumb {
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.14);
-  background:
-    radial-gradient(circle at 30% 20%, rgba(0,255,65,0.12), transparent 55%),
-    radial-gradient(circle at 70% 80%, rgba(0,217,255,0.12), transparent 55%),
-    rgba(255,255,255,0.05);
-  padding: 12px;
-  height: 140px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.04);
+  padding: 16px;
+  height: 120px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .templateLabel {
   margin-top: 10px;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 14px;
+  color: rgba(255,255,255,0.95);
+}
+
+.templateCard .small {
+  margin-top: 6px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.5);
+  line-height: 1.35;
 }
 
 .thumbStack {
@@ -491,34 +649,53 @@ button:disabled {
 }
 
 .thumbBox {
-  background: rgba(255,255,255,0.10);
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 12px;
-  min-height: 52px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  min-height: 40px;
   width: 100%;
 }
 
-.thumbBox.half { min-height: 56px; }
+.thumbBox.half { min-height: 44px; }
 .thumbBox.full { 
-  min-height: 118px;
-  width: 80%; /* Constrain width for single photo to show centering */
+  min-height: 88px;
+  width: 75%;
 }
 
 /* -----------------------------------------------------------
    Camera (fit iPad: no page scroll)
 ----------------------------------------------------------- */
 
+.camera-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  max-width: 860px;
+}
+
+.camera-hint {
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  text-align: center;
+}
+
+.camera-capture-btn {
+  padding: 14px 32px;
+  font-size: 16px;
+}
+
 .cameraCard {
   width: min(860px, 100%);
+  max-height: min(58vh, 520px); /* keep Capture button in view */
   border-radius: 22px;
   overflow: hidden;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.14);
   box-shadow: var(--shadow);
   position: relative;
-
-  /* max-height will be removed dynamically when aspect ratio is set */
-  /* aspect-ratio will be set dynamically to match video exactly */
+  flex-shrink: 0;
 }
 
 .video {

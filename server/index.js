@@ -1,6 +1,7 @@
 // server/index.js
 const fs = require("fs");
 const path = require("path");
+const http = require("http");
 const https = require("https");
 const express = require("express");
 const { promisify } = require("util");
@@ -30,8 +31,8 @@ const KEY_PATH = path.join(__dirname, "certs", "key.pem");
 const SAVED_DIR = path.join(__dirname, "saved");
 fs.mkdirSync(SAVED_DIR, { recursive: true });
 
-// 80mm thermal receipt printable width in pixels (RP80: 48 chars = 384px avoids bleed)
-const THERMAL_WIDTH_PX = 384;
+// 80mm thermal receipt: scale to fit printable width (288px leaves margin so QR stays centered)
+const THERMAL_WIDTH_PX = 288;
 
 /**
  * Send image buffer to the first connected USB thermal printer (ESC/POS).
@@ -50,13 +51,11 @@ async function printToThermal(imageBuffer) {
     });
     const printer = await escpos.Printer.create(device);
 
-    // Resize, grayscale, lighten, then Floyd-Steinberg dither for gray tones
-    // (thermal printers are 1-bit; dithering simulates gray and shows detail)
+    // Resize to fit 80mm paper, grayscale, gamma to lift shadows (preserves black text)
     const bwPng = await sharp(imageBuffer)
       .resize(THERMAL_WIDTH_PX, null, { withoutEnlargement: true })
       .greyscale()
-      .normalize()
-      .linear(1, 45)
+      .gamma(3.0)
       .png({ colours: 2, dither: 1 })
       .toBuffer();
     const pixels = await getPixelsAsync(bwPng, "image/png");
@@ -254,13 +253,25 @@ app.get("*", (req, res) => {
   return res.sendFile(INDEX_HTML);
 });
 
-// -------------------- HTTPS server --------------------
-const httpsOptions = {
-  cert: fs.readFileSync(CERT_PATH),
-  key: fs.readFileSync(KEY_PATH),
-};
+// -------------------- Server --------------------
+// When behind ngrok (PUBLIC_BASE_URL set): run BOTH HTTP (3000) for ngrok AND HTTPS (3001) for direct LAN.
+// ngrok forwards plain HTTP to 3000; iPad can use HTTPS on 3001 (camera needs secure context).
+// When not using ngrok: HTTPS only on 3000 for direct LAN.
+const useNgrok = !!PUBLIC_BASE_URL;
+const httpsOpts = { cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) };
 
-https.createServer(httpsOptions, app).listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ HTTPS Server listening on: https://localhost:${PORT}`);
-  console.log(`ℹ️ PUBLIC_BASE_URL = ${PUBLIC_BASE_URL || "(not set, LAN-only links)"}`);
-});
+if (useNgrok) {
+  const httpServer = http.createServer(app);
+  const httpsServer = https.createServer(httpsOpts, app);
+  httpServer.listen(PORT, "0.0.0.0", () => {
+    console.log(`✅ HTTP on :${PORT} (for ngrok tunnel)`);
+    console.log(`✅ HTTPS on :${PORT + 1} (for direct LAN / iPad)`);
+    console.log(`ℹ️ PUBLIC_BASE_URL = ${PUBLIC_BASE_URL}`);
+    httpsServer.listen(PORT + 1, "0.0.0.0");
+  });
+} else {
+  https.createServer(httpsOpts, app).listen(PORT, "0.0.0.0", () => {
+    console.log(`✅ HTTPS Server listening on: https://localhost:${PORT}`);
+    console.log(`ℹ️ PUBLIC_BASE_URL = ${PUBLIC_BASE_URL || "(not set, LAN-only links)"}`);
+  });
+}

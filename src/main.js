@@ -51,6 +51,11 @@ let previewCountdownTimer = null;
 // public URL for QR codes (ngrok, etc.)
 let publicBaseUrl = null;
 
+// Print filters — developer-only constants, applied only when printing (not in preview)
+const PRINT_FILTER_CONTRAST = 0.5;
+const PRINT_FILTER_BRIGHTNESS = 2;
+const PRINT_FILTER_SATURATION = 0.5;
+
 // capture cancellation / concurrency
 let captureToken = 0;
 let isCapturing = false;
@@ -275,7 +280,7 @@ async function waitForVideoReady(videoEl) {
 }
 
 // -------------------- Shared Neon Shell Builder --------------------
-function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "", footerRightHtml = "" }) {
+function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "", footerRightHtml = "", stageClass = "" }) {
   // Ensure persistent lanterns are initialized (they stay in body, never destroyed)
   initPersistentLanterns();
   
@@ -286,24 +291,26 @@ function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "
       <div class="neon-glow blue"></div>
       <div class="scanlines"></div>
 
-      <div class="neon-wrap">
-        <div class="neon-topbar">
+      <header class="neon-topbar">
+        <div class="neon-topbar-inner">
           <div class="brand">
             <div class="title">Tiff's 31st Pocha</div>
             <div class="sub">Receipt Photobooth</div>
           </div>
           <div>${topRightHtml}</div>
         </div>
+      </header>
 
-        <div class="neon-stage">
-          ${stageHtml}
-        </div>
+      <main class="neon-stage-wrap">
+        <div class="neon-stage ${stageClass}">${stageHtml}</div>
+      </main>
 
-        <div class="neon-footer">
+      <footer class="neon-footer">
+        <div class="neon-footer-inner">
           <div>${footerLeftHtml}</div>
           <div style="display:flex; gap:10px; align-items:center;">${footerRightHtml}</div>
         </div>
-      </div>
+      </footer>
     </div>
   `;
 }
@@ -368,18 +375,17 @@ function renderTemplateSelect() {
   ).join("");
 
   renderNeonShell({
-    topRightHtml: `<div class="badge">Step <b>1</b> of <b>3</b></div>`,
+    topRightHtml: `<div class="badge"><b>1</b> / 3</div>`,
     stageHtml: `
-      <div class="neon-card">
+      <div class="neon-card neon-card--layout">
         <h2>Choose your layout</h2>
         <div class="hint">Pick a template. For 2+ shots you'll press Start, then we'll auto-capture with a countdown.</div>
         <div class="templateGrid">${cardsHtml}</div>
       </div>
     `,
-    // footerLeftHtml: `<div class="small">Tip: iPad landscape is best.</div>`,
     footerRightHtml: `
-      <button id="backBtn">Back</button>
-      <button class="neon-primary" id="confirmBtn" ${selectedTemplateId ? "" : "disabled"}>Confirm</button>
+      <button id="backBtn" class="btn-text">Back</button>
+      <button class="neon-primary" id="confirmBtn" ${selectedTemplateId ? "" : "disabled"}>Continue</button>
     `,
   });
 
@@ -432,28 +438,27 @@ function renderCamera() {
   const needsStart = auto && !autoArmed && shots.length === 0;
 
   renderNeonShell({
-    topRightHtml: `<div class="badge" id="shotBadge">Shot <b>${shots.length + 1}</b> of <b>${requiredShots}</b></div>`,
+    topRightHtml: `<div class="badge badge--shot" id="shotBadge">Shot <b>${shots.length + 1}</b> of <b>${requiredShots}</b></div>`,
     stageHtml: `
-      <div class="cameraCard" style="opacity: 0;">
-        <video class="video" id="video" autoplay playsinline webkit-playsinline muted disablepictureinpicture style="opacity: 0;"></video>
-        <div class="overlay" id="countdown" style="display:none;"></div>
-        <div class="flash" id="flash" style="display:none;">Nice!</div>
-        <div class="status" id="status" style="display:${needsStart ? "grid" : "none"};">
-          ${needsStart ? "Press Start when you're ready 📸" : ""}
+      <div class="camera-stage">
+        <div class="cameraCard" style="opacity: 0;">
+          <video class="video" id="video" autoplay playsinline webkit-playsinline muted disablepictureinpicture style="opacity: 0;"></video>
+          <div class="overlay" id="countdown" style="display:none;"></div>
+          <div class="flash" id="flash" style="display:none;">Nice!</div>
+          <div class="status" id="status" style="display:${needsStart ? "grid" : "none"};">
+            ${needsStart ? "Press Start when you're ready 📸" : ""}
+          </div>
         </div>
-      </div>
-      <div class="small" style="margin-top:12px; text-align:center;">
-        ${auto ? `Auto mode • ${COUNTDOWN_SECONDS}s countdown` : `Manual mode • tap Capture`}
+        <div class="camera-hint">
+          ${auto ? `Auto mode • ${COUNTDOWN_SECONDS}s countdown` : `Manual mode • tap Capture`}
+        </div>
+        ${!auto ? `<button class="neon-primary camera-capture-btn" id="captureBtn">Capture</button>` : ""}
       </div>
     `,
     footerLeftHtml: `<div class="small">Order # <b>${orderNumber ?? "--"}</b></div>`,
     footerRightHtml: `
-      <button id="cancelBtn">Cancel</button>
-      ${
-        auto
-          ? (needsStart ? `<button class="neon-primary" id="startAutoBtn">Start</button>` : ``)
-          : `<button class="neon-primary" id="captureBtn">Capture</button>`
-      }
+      <button id="cancelBtn" class="btn-text">Cancel</button>
+      ${auto && needsStart ? `<button class="neon-primary" id="startAutoBtn">Start</button>` : ""}
     `,
   });
 
@@ -473,27 +478,26 @@ function renderCamera() {
     video.style.pointerEvents = "none";
   }
   
-  // Update video preview to match video aspect ratio exactly (no black bars)
+  // Update video preview: constrain size so Capture button stays visible
   const updateVideoAspect = () => {
     if (video.videoWidth && video.videoHeight) {
       const videoAspect = video.videoWidth / video.videoHeight;
       
-      // Set cameraCard to match the video's aspect ratio exactly
       if (cameraCard) {
-        // Remove any height constraints that might interfere
-        cameraCard.style.maxHeight = "none";
-        cameraCard.style.height = "auto";
-        
-        // Set aspect ratio to match video exactly
+        // Constrain to fit viewport (room for hint + Capture button + header/footer)
+        const maxH = Math.min(window.innerHeight * 0.58, 520);
+        const maxW = Math.min(860, window.innerWidth - 32);
+        // Fit within box: if width-limited, height = width/aspect; if height-limited, width = height*aspect
+        let w = maxW, h = maxW / videoAspect;
+        if (h > maxH) {
+          h = maxH;
+          w = maxH * videoAspect;
+        }
+        cameraCard.style.width = `${w}px`;
+        cameraCard.style.height = `${h}px`;
         cameraCard.style.aspectRatio = `${videoAspect}`;
-        
-        // Ensure width doesn't exceed container, let height adjust naturally based on aspect ratio
-        cameraCard.style.width = "min(860px, 100%)";
-        cameraCard.style.maxWidth = "100%";
       }
       
-      // Use object-fit: contain to show full video without cropping
-      // Since container aspect ratio matches video, there will be no black bars
       video.style.objectFit = "contain";
     }
   };
@@ -575,7 +579,7 @@ async function startCamera() {
           <div class="hint">iPad requires HTTPS. Use your Mac HTTPS server (or ngrok) and accept the certificate.</div>
         </div>
       `,
-      footerRightHtml: `<button id="backBtn">Back</button>`,
+      footerRightHtml: `<button id="backBtn" class="btn-text">Back</button>`,
     });
 
     document.querySelector("#backBtn").addEventListener("click", () => {
@@ -632,7 +636,8 @@ async function captureWithCountdown(videoEl, tokenFromRender) {
     ctx.scale(-1, 1);
     ctx.drawImage(videoEl, 0, 0, w, h);
 
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.92);
+    // PNG preserves exact pixels (like camera-filter-demo); JPEG lossy would change filter input
+    const dataUrl = canvas.toDataURL("image/png");
     shots.push(dataUrl);
 
     // Flash
@@ -673,6 +678,54 @@ async function captureWithCountdown(videoEl, tokenFromRender) {
   } finally {
     if (myToken === captureToken) isCapturing = false;
   }
+}
+
+// -------------------- Photo filters (exact copy from camera-filter-demo) --------------------
+function applyFilters(imageData) {
+  const data = imageData.data;
+  const contrast = filterContrast;
+  const brightness = filterBrightness;
+  const saturation = filterSaturation;
+
+  for (let i = 0; i < data.length; i += 4) {
+    let r = data[i];
+    let g = data[i + 1];
+    let b = data[i + 2];
+
+    // Brightness: scale around 0
+    r = r * brightness;
+    g = g * brightness;
+    b = b * brightness;
+
+    // Contrast: (p - 128) * factor + 128
+    const contrastFactor = contrast;
+    r = (r - 128) * contrastFactor + 128;
+    g = (g - 128) * contrastFactor + 128;
+    b = (b - 128) * contrastFactor + 128;
+
+    // Saturation: blend with luminance
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    r = gray + (r - gray) * saturation;
+    g = gray + (g - gray) * saturation;
+    b = gray + (b - gray) * saturation;
+
+    data[i] = Math.max(0, Math.min(255, r));
+    data[i + 1] = Math.max(0, Math.min(255, g));
+    data[i + 2] = Math.max(0, Math.min(255, b));
+  }
+  return imageData;
+}
+
+function applyPrintFiltersToImage(img) {
+  const c = document.createElement("canvas");
+  c.width = img.width;
+  c.height = img.height;
+  const ctx = c.getContext("2d");
+  ctx.drawImage(img, 0, 0);
+  const imageData = ctx.getImageData(0, 0, c.width, c.height);
+  applyPrintFilters(imageData);
+  ctx.putImageData(imageData, 0, 0);
+  return c;
 }
 
 // -------------------- Composite helpers --------------------
@@ -731,38 +784,38 @@ function drawDashedLine(ctx, x1, y, x2) {
 }
 
 // -------------------- Build receipt composite --------------------
-// 80mm thermal paper: 384px width matches RP80 printable area (48 chars × 8 dots)
-// Preview and print use the same dimensions so WYSIWYG
+// 80mm thermal: 384px width, larger fonts for legibility on print
 const RECEIPT_WIDTH_PX = 384;
 
-async function buildCompositeDataUrl() {
+async function buildCompositeDataUrl(applyPrintFilter = false) {
   const W = RECEIPT_WIDTH_PX;
+  const pad = 14;
+  const maxContentWidth = W - pad * 2;
 
   const dtStr = (orderDate ?? new Date()).toLocaleString();
   const orderStr = orderNumber ?? "------";
 
   const canvas = document.createElement("canvas");
   canvas.width = W;
-  canvas.height = 3000; // Start large; trimmed to final height
+  canvas.height = 3000;
   const ctx = canvas.getContext("2d");
 
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, W, 3000);
 
-  const pad = 15;
-  let y = 26;
+  let y = 24;
 
-  drawText(ctx, "TIFF'S 31ST POCHA", pad, y, { size: 18, weight: "900" });
-  y += 15;
+  drawText(ctx, "TIFF'S 31ST POCHA", pad, y, { size: 24, weight: "900" });
+  y += 22;
 
-  drawText(ctx, `DATE: ${dtStr}`, pad, y, { size: 11, weight: "600" });
-  y += 13;
-  drawText(ctx, `ORDER #: ${orderStr}`, pad, y, { size: 11, weight: "600" });
-  y += 13;
+  drawText(ctx, `DATE: ${dtStr}`, pad, y, { size: 16, weight: "600" });
+  y += 18;
+  drawText(ctx, `ORDER #: ${orderStr}`, pad, y, { size: 16, weight: "600" });
+  y += 18;
 
-  y += 6;
+  y += 8;
   drawDashedLine(ctx, pad, y, W - pad);
-  y += 15;
+  y += 18;
 
   const items = [
     ["FRIED CHICKEN", "1", "8.49"],
@@ -771,31 +824,33 @@ async function buildCompositeDataUrl() {
     ["KOGI DOG", "1", "8.99"],
   ];
 
-  // Calculate total from items
   const total = items.reduce((sum, [, , price]) => sum + parseFloat(price), 0);
   const totalStr = total.toFixed(2);
 
-  drawText(ctx, "ITEM             QTY     PRICE", pad, y, { size: 10, weight: "800" });
-  y += 13;
+  drawText(ctx, "ITEM         QTY   PRICE", pad, y, { size: 14, weight: "800" });
+  y += 18;
 
   for (const [name, qty, price] of items) {
-    const left = String(name).padEnd(16, " ");
-    const mid = String(qty).padStart(3, " ");
-    const right = String(price).padStart(8, " ");
-    drawText(ctx, `${left}  ${mid}  ${right}`, pad, y, { size: 10, weight: "600" });
-    y += 11;
+    const left = String(name).slice(0, 14).padEnd(14, " ");
+    const mid = String(qty).padStart(2, " ");
+    const right = String(price).padStart(5, " ");
+    drawText(ctx, `${left} ${mid}  ${right}`, pad, y, { size: 14, weight: "600" });
+    y += 16;
   }
 
-  y += 6;
+  y += 8;
   drawDashedLine(ctx, pad, y, W - pad);
-  y += 15;
+  y += 18;
 
   const photoBoxX = pad;
   const photoBoxY = y;
-  const photoBoxW = W - pad * 2;
+  const photoBoxW = maxContentWidth;
   // Photo box height will be calculated based on template
 
-  const imgs = await Promise.all(shots.map(loadImage));
+  const rawImgs = await Promise.all(shots.map(loadImage));
+  const imgs = applyPrintFilter
+    ? rawImgs.map((img) => applyPrintFiltersToImage(img))
+    : rawImgs;
 
   let photoBoxH = 0; // Will be calculated based on layout
 
@@ -832,14 +887,14 @@ async function buildCompositeDataUrl() {
     photoBoxH = 256;
   }
 
-  y = photoBoxY + photoBoxH + 15;
+  y = photoBoxY + photoBoxH + 18;
   drawDashedLine(ctx, pad, y, W - pad);
-  y += 15;
+  y += 18;
 
-  drawText(ctx, "TOTAL".padEnd(22, " ") + `$${totalStr}`, pad, y, { size: 13, weight: "900" });
-  y += 15;
-  drawText(ctx, "THANK YOU FOR CELEBRATING!", pad, y, { size: 11, weight: "700" });
-  y += 19;
+  drawText(ctx, "TOTAL".padEnd(18, " ") + `$${totalStr}`, pad, y, { size: 18, weight: "900" });
+  y += 20;
+  drawText(ctx, "THANK YOU FOR CELEBRATING!", pad, y, { size: 15, weight: "700" });
+  y += 22;
 
   const base = await getPublicBaseUrl();
   const shareUrl = `${base}/share/${orderNumber}`;
@@ -854,25 +909,18 @@ async function buildCompositeDataUrl() {
   y += qrSize;
 
   const scanText = "SCAN TO DOWNLOAD";
-  ctx.font = "800 10px ui-monospace, SFMono-Regular, Menlo, monospace";
-  const scanTextWidth = ctx.measureText(scanText).width;
-  const scanTextX = Math.floor(centerX - scanTextWidth / 2);
-  y += 10;
-  drawText(ctx, scanText, scanTextX, y, { size: 10, weight: "800" });
-  y += 15;
-  y += 26;
+  ctx.font = "800 15px ui-monospace, SFMono-Regular, Menlo, monospace";
+  const scanTextX = Math.floor(centerX - ctx.measureText(scanText).width / 2);
+  drawText(ctx, scanText, scanTextX, y + 12, { size: 15, weight: "800" });
+  y += 22;
+  y += 24;
 
-  // Create a new canvas with the correct final height and copy the content
   const finalCanvas = document.createElement("canvas");
   finalCanvas.width = W;
   finalCanvas.height = y;
   const finalCtx = finalCanvas.getContext("2d");
-  
-  // Fill the final canvas with white background first
   finalCtx.fillStyle = "#ffffff";
   finalCtx.fillRect(0, 0, W, y);
-  
-  // Copy the drawn content to the final canvas
   finalCtx.drawImage(canvas, 0, 0);
 
   return finalCanvas.toDataURL("image/jpeg", 0.92);
@@ -927,7 +975,7 @@ async function renderFinalCompositePreview() {
         <div style="margin-top:12px; font-size:34px;">🧾</div>
       </div>
     `,
-    footerRightHtml: `<button id="cancelBtn">Cancel</button>`,
+    footerRightHtml: `<button id="cancelBtn" class="btn-text">Cancel</button>`,
   });
 
   document.querySelector("#cancelBtn")?.addEventListener("click", resetOrder);
@@ -973,41 +1021,37 @@ function showPreview(compositeDataUrl) {
   let secondsLeft = PREVIEW_TIMEOUT_SECONDS;
 
   renderNeonShell({
-    topRightHtml: `<div class="badge">Step <b>2</b> of <b>3</b></div>`,
+    topRightHtml: `<div class="badge"><b>2</b> / 3</div>`,
+    stageClass: "neon-stage--preview",
     stageHtml: `
-      <div class="neon-card previewCard">
-        <div>
-          <h2 style="margin:0 0 6px;">Preview</h2>
-          <div class="hint" style="margin:0 0 12px;">
-            Scroll the receipt inside the card if needed. (The page itself won't scroll.)
+      <div class="preview-screen">
+        <div class="preview-header">
+          <h2 style="margin:0 0 4px;">Preview</h2>
+          <div class="hint" style="margin:0;">Swipe down to see Print button.</div>
+        </div>
+        <div class="preview-scroll-area">
+          <img src="${compositeDataUrl}" alt="Final composite" class="preview-receipt-img" />
+          <div class="preview-footer-actions">
+            <div class="small">Order # <b>${orderNumber ?? "--"}</b> • ${orderDate ? orderDate.toLocaleString() : new Date().toLocaleString()}</div>
+            <div class="preview-buttons">
+              <button id="retakeBtn" class="btn-text">Retake</button>
+              <button class="neon-primary" id="printBtn">Print (${secondsLeft}s)</button>
+            </div>
           </div>
-        </div>
-
-        <div class="previewScroll">
-          <img src="${compositeDataUrl}" alt="Final composite" />
-        </div>
-
-        <div class="small">
-          Order # <b>${orderNumber ?? "--"}</b> • ${orderDate ? orderDate.toLocaleString() : new Date().toLocaleString()}
         </div>
       </div>
     `,
-    footerLeftHtml: `<div class="small">Retake clears shots but keeps template.</div>`,
-    footerRightHtml: `
-      <button id="retakeBtn">Retake</button>
-      <button class="neon-primary" id="printBtn">Print (${secondsLeft}s)</button>
-    `,
+    footerLeftHtml: ``,
+    footerRightHtml: ``,
   });
 
   const printBtn = document.querySelector("#printBtn");
 
-  // Start countdown timer
   previewCountdownTimer = setInterval(() => {
     secondsLeft--;
     if (printBtn) {
       printBtn.textContent = `Print (${secondsLeft}s)`;
     }
-
     if (secondsLeft <= 0) {
       clearPreviewCountdown();
       resetOrder();
@@ -1022,17 +1066,28 @@ function showPreview(compositeDataUrl) {
     renderCamera();
   });
 
-  printBtn.addEventListener("click", () => {
+  printBtn.addEventListener("click", async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
     clearPreviewCountdown();
-    doPrint(compositeDataUrl);
+
+    try {
+      // Apply print filters only when printing (preview shows unfiltered)
+      const compositeForPrint = await buildCompositeDataUrl(true);
+      await doPrint(compositeForPrint, compositeDataUrl);
+    } catch (err) {
+      console.error("Print error:", err);
+      // Fallback: print unfiltered if build fails
+      await doPrint(compositeDataUrl, compositeDataUrl);
+    }
   });
 }
 
-async function doPrint(compositeDataUrl) {
+async function doPrint(compositeDataUrl, previewDataUrl = null) {
   armIdleTimer();
 
   renderNeonShell({
-    topRightHtml: `<div class="badge">Step <b>3</b> of <b>3</b></div>`,
+    topRightHtml: `<div class="badge"><b>3</b> / 3</div>`,
     stageHtml: `
       <div class="neon-card" style="text-align:center;">
         <h2>Printing...</h2>
@@ -1040,7 +1095,7 @@ async function doPrint(compositeDataUrl) {
         <div style="margin-top:12px; font-size:34px;">🧾</div>
       </div>
     `,
-    footerRightHtml: `<button id="cancelBtn">Cancel</button>`,
+    footerRightHtml: `<button id="cancelBtn" class="btn-text">Cancel</button>`,
   });
 
   document.querySelector("#cancelBtn").addEventListener("click", resetOrder);
@@ -1090,7 +1145,7 @@ async function doPrint(compositeDataUrl) {
     });
 
     document.querySelector("#restartBtn").addEventListener("click", resetOrder);
-    document.querySelector("#backBtn").addEventListener("click", () => showPreview(compositeDataUrl));
+    document.querySelector("#backBtn").addEventListener("click", () => showPreview(previewDataUrl ?? compositeDataUrl));
   }
 }
 
