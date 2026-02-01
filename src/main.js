@@ -301,7 +301,7 @@ function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "
         </div>
       </header>
 
-      <main class="neon-stage-wrap">
+      <main class="neon-stage-wrap" id="main-content" role="main" aria-label="Main content">
         <div class="neon-stage ${stageClass}">${stageHtml}</div>
       </main>
 
@@ -340,7 +340,7 @@ function renderStart() {
 
         </br></br>
 
-        <button class="neon-cta" id="startBtn">
+        <button class="neon-cta" id="startBtn" aria-label="Start order and choose layout">
           START ORDER <span aria-hidden="true">→</span>
         </button>
       </div>
@@ -362,7 +362,7 @@ function renderTemplateSelect() {
 
   const cardsHtml = TEMPLATES.map(
     (t) => `
-      <button class="templateCard ${selectedTemplateId === t.id ? "selected" : ""}" data-id="${t.id}">
+      <button class="templateCard ${selectedTemplateId === t.id ? "selected" : ""}" data-id="${t.id}" aria-pressed="${selectedTemplateId === t.id}" aria-label="Choose ${t.name} layout">
         <div class="templateThumb">
           ${renderTemplateThumb(t.id)}
         </div>
@@ -384,8 +384,8 @@ function renderTemplateSelect() {
       </div>
     `,
     footerRightHtml: `
-      <button id="backBtn" class="btn-text">Back</button>
-      <button class="neon-primary" id="confirmBtn" ${selectedTemplateId ? "" : "disabled"}>Continue</button>
+      <button id="backBtn" class="btn-text" aria-label="Go back">Back</button>
+      <button class="neon-primary" id="confirmBtn" ${selectedTemplateId ? "" : "disabled"} aria-label="Continue to camera">Continue</button>
     `,
   });
 
@@ -452,13 +452,13 @@ function renderCamera() {
         <div class="camera-hint">
           ${auto ? `Auto mode • ${COUNTDOWN_SECONDS}s countdown` : `Manual mode • tap Capture`}
         </div>
-        ${!auto ? `<button class="neon-primary camera-capture-btn" id="captureBtn">Capture</button>` : ""}
+        ${!auto ? `<button class="neon-primary camera-capture-btn" id="captureBtn" aria-label="Capture photo">Capture</button>` : ""}
       </div>
     `,
     footerLeftHtml: `<div class="small">Order # <b>${orderNumber ?? "--"}</b></div>`,
     footerRightHtml: `
-      <button id="cancelBtn" class="btn-text">Cancel</button>
-      ${auto && needsStart ? `<button class="neon-primary" id="startAutoBtn">Start</button>` : ""}
+      <button id="cancelBtn" class="btn-text" aria-label="Cancel and go back">Cancel</button>
+      ${auto && needsStart ? `<button class="neon-primary" id="startAutoBtn" aria-label="Start countdown and capture">Start</button>` : ""}
     `,
   });
 
@@ -959,7 +959,7 @@ async function renderFinalCompositePreview() {
           <div class="hint">${escapeHtml(String(e))}</div>
         </div>
       `,
-      footerRightHtml: `<button class="neon-primary" id="restartBtn">Start Over</button>`,
+      footerRightHtml: `<button class="neon-primary" id="restartBtn" aria-label="Start over">Start Over</button>`,
     });
     document.querySelector("#restartBtn").addEventListener("click", resetOrder);
     return;
@@ -975,7 +975,7 @@ async function renderFinalCompositePreview() {
         <div style="margin-top:12px; font-size:34px;">🧾</div>
       </div>
     `,
-    footerRightHtml: `<button id="cancelBtn" class="btn-text">Cancel</button>`,
+    footerRightHtml: `<button id="cancelBtn" class="btn-text" aria-label="Cancel">Cancel</button>`,
   });
 
   document.querySelector("#cancelBtn")?.addEventListener("click", resetOrder);
@@ -1034,8 +1034,8 @@ function showPreview(compositeDataUrl) {
           <div class="preview-footer-actions">
             <div class="small">Order # <b>${orderNumber ?? "--"}</b> • ${orderDate ? orderDate.toLocaleString() : new Date().toLocaleString()}</div>
             <div class="preview-buttons">
-              <button id="retakeBtn" class="btn-text">Retake</button>
-              <button class="neon-primary" id="printBtn">Print (${secondsLeft}s)</button>
+              <button id="retakeBtn" class="btn-text" aria-label="Retake photos">Retake</button>
+              <button class="neon-primary" id="printBtn" aria-label="Print receipt">Print (${secondsLeft}s)</button>
             </div>
           </div>
         </div>
@@ -1095,7 +1095,7 @@ async function doPrint(compositeDataUrl, previewDataUrl = null) {
         <div style="margin-top:12px; font-size:34px;">🧾</div>
       </div>
     `,
-    footerRightHtml: `<button id="cancelBtn" class="btn-text">Cancel</button>`,
+    footerRightHtml: `<button id="cancelBtn" class="btn-text" aria-label="Cancel">Cancel</button>`,
   });
 
   document.querySelector("#cancelBtn").addEventListener("click", resetOrder);
@@ -1139,7 +1139,7 @@ async function doPrint(compositeDataUrl, previewDataUrl = null) {
         </div>
       `,
       footerRightHtml: `
-        <button id="restartBtn">Start Over</button>
+        <button id="restartBtn" aria-label="Start over">Start Over</button>
         <button class="neon-primary" id="backBtn">Back to Preview</button>
       `,
     });
