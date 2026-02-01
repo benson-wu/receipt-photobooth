@@ -11,6 +11,7 @@ const TEMPLATES = [
 ];
 
 const IDLE_MS = 30_000;
+const IDLE_WARNING_MS = 20_000; // Show warning 10s before reset
 
 // countdown behavior (your request)
 const COUNTDOWN_SECONDS = 5;
@@ -42,8 +43,12 @@ function getNextOrderNumber() {
   return String(orderNum);
 }
 
-// idle
+// idle — only active on template select, preview, and print screens (not home or camera)
 let idleTimer = null;
+let idleWarningTimer = null;
+let idleWarningOverlay = null;
+let idleCountdownInterval = null;
+let idleTimerEnabled = false;
 
 // preview countdown timer
 let previewCountdownTimer = null;
@@ -280,7 +285,7 @@ async function waitForVideoReady(videoEl) {
 }
 
 // -------------------- Shared Neon Shell Builder --------------------
-function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "", footerRightHtml = "", stageClass = "" }) {
+function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "", footerRightHtml = "", stageClass = "", wrapClass = "" }) {
   // Ensure persistent lanterns are initialized (they stay in body, never destroyed)
   initPersistentLanterns();
   
@@ -301,14 +306,14 @@ function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "
         </div>
       </header>
 
-      <main class="neon-stage-wrap" id="main-content" role="main" aria-label="Main content">
+      <main class="neon-stage-wrap ${wrapClass}" id="main-content" role="main" aria-label="Main content">
         <div class="neon-stage ${stageClass}">${stageHtml}</div>
       </main>
 
       <footer class="neon-footer">
         <div class="neon-footer-inner">
           <div>${footerLeftHtml}</div>
-          <div style="display:flex; gap:10px; align-items:center;">${footerRightHtml}</div>
+          <div class="footer-actions">${footerRightHtml}</div>
         </div>
       </footer>
     </div>
@@ -358,6 +363,7 @@ function renderStart() {
 
 function renderTemplateSelect() {
   invalidateCaptureFlow();
+  idleTimerEnabled = true;
   armIdleTimer();
 
   const cardsHtml = TEMPLATES.map(
@@ -366,7 +372,7 @@ function renderTemplateSelect() {
         <div class="templateThumb">
           ${renderTemplateThumb(t.id)}
         </div>
-        <div class="templateLabel">${t.name}</div>
+        <div class="templateLabel">${selectedTemplateId === t.id ? "✓ " : ""}${t.name}</div>
         <div class="small" style="margin-top:6px;">
           ${t.shots >= 2 ? `Auto mode (press Start, then ${COUNTDOWN_SECONDS}s countdown)` : `Manual mode (tap Capture)`}
         </div>
@@ -410,7 +416,21 @@ function renderTemplateSelect() {
     requiredShots = t?.shots ?? 0;
 
     shots = [];
-    autoArmed = false; // NEW: require Start for 2+ templates
+    autoArmed = false;
+
+    // Show loading state while camera starts (iPad-specific: avoids blank screen)
+    renderNeonShell({
+      topRightHtml: `<div class="badge"><b>2</b> / 3</div>`,
+      stageHtml: `
+        <div class="neon-card loading-card">
+          <div class="loading-spinner" aria-hidden="true"></div>
+          <h2 style="margin:0 0 8px;">Starting camera…</h2>
+          <div class="hint">Please allow camera access when prompted.</div>
+        </div>
+      `,
+      footerLeftHtml: ``,
+      footerRightHtml: ``,
+    });
 
     await startCamera();
     renderCamera();
@@ -478,26 +498,26 @@ function renderCamera() {
     video.style.pointerEvents = "none";
   }
   
-  // Update video preview: constrain size so Capture button stays visible
+  // Update video preview: fit entire video within viewport (no cropping), may be smaller
   const updateVideoAspect = () => {
-    if (video.videoWidth && video.videoHeight) {
+    if (video.videoWidth && video.videoHeight && cameraCard) {
       const videoAspect = video.videoWidth / video.videoHeight;
-      
-      if (cameraCard) {
-        // Constrain to fit viewport (room for hint + Capture button + header/footer)
-        const maxH = Math.min(window.innerHeight * 0.58, 520);
-        const maxW = Math.min(860, window.innerWidth - 32);
-        // Fit within box: if width-limited, height = width/aspect; if height-limited, width = height*aspect
-        let w = maxW, h = maxW / videoAspect;
-        if (h > maxH) {
-          h = maxH;
-          w = maxH * videoAspect;
-        }
-        cameraCard.style.width = `${w}px`;
-        cameraCard.style.height = `${h}px`;
-        cameraCard.style.aspectRatio = `${videoAspect}`;
+      const isLandscape = window.innerWidth > window.innerHeight;
+      const maxH = isLandscape
+        ? Math.min(window.innerHeight * 0.68, 600)
+        : Math.min(window.innerHeight * 0.58, 520);
+      const maxW = isLandscape
+        ? Math.min(1100, window.innerWidth - 40)
+        : Math.min(860, window.innerWidth - 32);
+      // Fit within box: preserve aspect, show whole video (no crop)
+      let w = maxW, h = maxW / videoAspect;
+      if (h > maxH) {
+        h = maxH;
+        w = maxH * videoAspect;
       }
-      
+      cameraCard.style.width = `${w}px`;
+      cameraCard.style.height = `${h}px`;
+      cameraCard.style.aspectRatio = `${videoAspect}`;
       video.style.objectFit = "contain";
     }
   };
@@ -640,11 +660,12 @@ async function captureWithCountdown(videoEl, tokenFromRender) {
     const dataUrl = canvas.toDataURL("image/png");
     shots.push(dataUrl);
 
-    // Flash
+    // Success feedback (iPad: clear confirmation each shot was captured)
     const flash = document.querySelector("#flash");
     if (flash) {
+      flash.textContent = requiredShots > 1 ? `Shot ${shots.length} ✓` : "Captured ✓";
       flash.style.display = "grid";
-      await wait(420);
+      await wait(500);
       flash.style.display = "none";
     }
 
@@ -1015,43 +1036,48 @@ function clearPreviewCountdown() {
 }
 
 function showPreview(compositeDataUrl) {
+  idleTimerEnabled = true;
   armIdleTimer();
-  clearPreviewCountdown(); // Clear any existing timer
+  clearPreviewCountdown();
 
   let secondsLeft = PREVIEW_TIMEOUT_SECONDS;
+  const totalSeconds = PREVIEW_TIMEOUT_SECONDS;
 
   renderNeonShell({
     topRightHtml: `<div class="badge"><b>2</b> / 3</div>`,
     stageClass: "neon-stage--preview",
+    wrapClass: "neon-stage-wrap--preview",
     stageHtml: `
       <div class="preview-screen">
         <div class="preview-header">
-          <h2 style="margin:0 0 4px;">Preview</h2>
-          <div class="hint" style="margin:0;">Swipe down to see Print button.</div>
-        </div>
-        <div class="preview-scroll-area">
-          <img src="${compositeDataUrl}" alt="Final composite" class="preview-receipt-img" />
-          <div class="preview-footer-actions">
-            <div class="small">Order # <b>${orderNumber ?? "--"}</b> • ${orderDate ? orderDate.toLocaleString() : new Date().toLocaleString()}</div>
-            <div class="preview-buttons">
-              <button id="retakeBtn" class="btn-text" aria-label="Retake photos">Retake</button>
-              <button class="neon-primary" id="printBtn" aria-label="Print receipt">Print (${secondsLeft}s)</button>
-            </div>
+          <h2 class="preview-title">Preview</h2>
+          <div class="preview-timeout-bar">
+            <div class="preview-timeout-fill" id="previewTimeoutFill" style="width: 100%"></div>
           </div>
+          <div class="hint preview-countdown" id="previewCountdownHint">Print or retake within ${secondsLeft}s</div>
+        </div>
+        <div class="preview-image-wrap">
+          <img src="${compositeDataUrl}" alt="Receipt photo strip" class="preview-receipt-img" />
         </div>
       </div>
     `,
-    footerLeftHtml: ``,
-    footerRightHtml: ``,
+    footerLeftHtml: `<div class="small">Order # <b>${orderNumber ?? "--"}</b></div>`,
+    footerRightHtml: `
+      <button id="retakeBtn" class="btn-text" aria-label="Retake photos">Retake</button>
+      <button class="neon-primary" id="printBtn" aria-label="Print receipt">Print</button>
+    `,
   });
 
   const printBtn = document.querySelector("#printBtn");
+  const timeoutFill = document.querySelector("#previewTimeoutFill");
+  const countdownHint = document.querySelector("#previewCountdownHint");
 
   previewCountdownTimer = setInterval(() => {
     secondsLeft--;
-    if (printBtn) {
-      printBtn.textContent = `Print (${secondsLeft}s)`;
-    }
+    const pct = Math.max(0, (secondsLeft / totalSeconds) * 100);
+    if (timeoutFill) timeoutFill.style.width = `${pct}%`;
+    if (countdownHint) countdownHint.textContent = secondsLeft > 0 ? `Print or retake within ${secondsLeft}s` : "Resetting…";
+    if (printBtn) printBtn.textContent = secondsLeft > 0 ? "Print" : "Print";
     if (secondsLeft <= 0) {
       clearPreviewCountdown();
       resetOrder();
@@ -1069,16 +1095,21 @@ function showPreview(compositeDataUrl) {
   printBtn.addEventListener("click", async (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (printBtn.disabled) return;
     clearPreviewCountdown();
 
+    printBtn.disabled = true;
+    printBtn.textContent = "Printing…";
+
     try {
-      // Apply print filters only when printing (preview shows unfiltered)
       const compositeForPrint = await buildCompositeDataUrl(true);
       await doPrint(compositeForPrint, compositeDataUrl);
     } catch (err) {
       console.error("Print error:", err);
-      // Fallback: print unfiltered if build fails
       await doPrint(compositeDataUrl, compositeDataUrl);
+    } finally {
+      printBtn.disabled = false;
+      printBtn.textContent = "Print";
     }
   });
 }
@@ -1182,15 +1213,74 @@ function escapeHtml(s) {
   return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-// -------------------- Idle timer --------------------
+// -------------------- Idle timer (iPad: warn before reset) --------------------
 function clearIdleTimer() {
   if (idleTimer) clearTimeout(idleTimer);
   idleTimer = null;
+  if (idleWarningTimer) clearTimeout(idleWarningTimer);
+  idleWarningTimer = null;
+  if (idleCountdownInterval) clearInterval(idleCountdownInterval);
+  idleCountdownInterval = null;
+  hideIdleWarning();
+}
+
+function hideIdleWarning() {
+  if (idleCountdownInterval) clearInterval(idleCountdownInterval);
+  idleCountdownInterval = null;
+  if (idleWarningOverlay) {
+    idleWarningOverlay.remove();
+    idleWarningOverlay = null;
+  }
+}
+
+function showIdleWarning() {
+  hideIdleWarning();
+  idleWarningOverlay = document.createElement("div");
+  idleWarningOverlay.className = "idle-warning-overlay";
+  idleWarningOverlay.setAttribute("role", "alert");
+  idleWarningOverlay.innerHTML = `
+    <div class="idle-warning-card">
+      <h3>Resetting in <span id="idleCountdown" class="idle-countdown-num">10</span> seconds</h3>
+      <p class="hint">Tap anywhere to stay</p>
+      <button class="neon-primary" id="idleStayBtn">Stay</button>
+    </div>
+  `;
+  const dismissAndRearm = () => {
+    clearIdleTimer(); /* clears both warning and reset timers */
+    armIdleTimer();
+  };
+
+  idleWarningOverlay.addEventListener("click", (e) => {
+    if (e.target.id === "idleStayBtn" || e.target.closest("#idleStayBtn")) return;
+    dismissAndRearm();
+  });
+  document.getElementById("idleStayBtn")?.addEventListener("click", dismissAndRearm);
+  document.body.appendChild(idleWarningOverlay);
+
+  let secondsLeft = 10;
+  const countdownEl = document.getElementById("idleCountdown");
+  idleCountdownInterval = setInterval(() => {
+    secondsLeft--;
+    if (countdownEl) countdownEl.textContent = String(Math.max(0, secondsLeft));
+    if (secondsLeft <= 0) clearInterval(idleCountdownInterval);
+  }, 1000);
 }
 
 function armIdleTimer() {
+  if (!idleTimerEnabled) {
+    clearIdleTimer();
+    return;
+  }
   clearIdleTimer();
-  idleTimer = setTimeout(() => resetOrder(), IDLE_MS);
+  idleWarningTimer = setTimeout(() => {
+    idleWarningTimer = null;
+    showIdleWarning();
+    idleTimer = setTimeout(() => {
+      idleTimer = null;
+      hideIdleWarning();
+      resetOrder();
+    }, 10_000);
+  }, IDLE_WARNING_MS);
 }
 
 function attachIdleListeners() {
@@ -1234,10 +1324,31 @@ function beepShutter() {
   makeBeep({ freq: 520, duration: 0.10, type: "triangle", volume: 0.08 });
 }
 
+// -------------------- Orientation (optimized for landscape) --------------------
+function initOrientationOverlay() {
+  const overlay = document.createElement("div");
+  overlay.className = "orientation-overlay";
+  overlay.setAttribute("aria-hidden", "true");
+  overlay.innerHTML = `
+    <div class="orientation-prompt">
+      <span class="orientation-icon" aria-hidden="true">🔄</span>
+      <p>Rotate your iPad to landscape for the best experience</p>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+
+  const mq = window.matchMedia("(orientation: portrait)");
+  const update = () => {
+    overlay.classList.toggle("visible", mq.matches);
+    overlay.setAttribute("aria-hidden", mq.matches ? "false" : "true");
+  };
+  mq.addEventListener("change", update);
+  update();
+}
+
 // -------------------- Boot --------------------
-// Initialize persistent lanterns first (they'll persist across all page changes)
 initPersistentLanterns();
+initOrientationOverlay();
 attachIdleListeners();
-armIdleTimer();
 renderStart();
 

@@ -32,19 +32,21 @@
 
 html, body {
   height: 100%;
+  min-height: 100svh;
   margin: 0;
   background: var(--bg-0);
   color: var(--text);
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
 
-  /* Prevent full-page scroll; inner scroll areas handle their own */
   overflow: hidden;
   -webkit-text-size-adjust: 100%;
   touch-action: manipulation;
 }
 
 #app {
-  height: 100svh; /* iOS-safe viewport height */
+  /* Safari: fit within visible viewport (address bar + tab bar) */
+  height: 100svh;
+  max-height: 100svh;
   width: 100%;
   overflow: hidden;
 }
@@ -84,7 +86,8 @@ a {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 100svh;
+  height: 100svh;
+  max-height: 100svh;
   width: 100%;
   overflow: hidden;
   background: var(--bg-0);
@@ -151,10 +154,11 @@ a {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 18px;
+  padding: 12px 16px;
+  padding-top: max(12px, env(safe-area-inset-top));
   max-width: 980px;
   margin: 0 auto;
-  min-height: 24px;
+  min-height: 22px;
 }
 
 .neon-topbar {
@@ -169,7 +173,13 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  padding: 12px 16px;
+}
+
+/* Preview stage: tighter padding so header + image + footer fit in Safari */
+.neon-stage-wrap--preview {
+  padding: 8px 12px;
+  align-items: stretch;
 }
 
 .neon-footer {
@@ -186,9 +196,17 @@ a {
   justify-content: space-between;
   gap: 16px;
   align-items: center;
-  padding: 14px 18px;
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
   max-width: 980px;
   margin: 0 auto;
+}
+
+/* Touch spacing for footer buttons (iPad) */
+.footer-actions {
+  display: flex;
+  gap: 20px;
+  align-items: center;
 }
 
 /* top bar content */
@@ -199,11 +217,13 @@ a {
   gap: 2px;
 }
 
+/* Glare/visibility: subtle text-shadow for bright event spaces */
 .brand .title {
   font-weight: 700;
   letter-spacing: 0.02em;
   font-size: 17px;
   color: rgba(255,255,255,0.95);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
 }
 
 .brand .sub {
@@ -310,11 +330,11 @@ a {
   line-height: 1.5;
 }
 
-/* preview screen — scrollable receipt + buttons */
+/* preview screen — receipt fits in Safari viewport (address bar + tab bar), no scroll */
 .preview-screen {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
   width: 100%;
   max-width: 860px;
   height: 100%;
@@ -325,35 +345,157 @@ a {
   flex-shrink: 0;
 }
 
-/* Scroll: fixed viewport height (reliable on iOS) */
-.preview-scroll-area {
-  position: relative;
-  width: 100%;
-  height: calc(100svh - 200px); /* fixed height so overflow scrolls */
-  overflow-y: scroll;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-y: contain;
-  touch-action: pan-y;
-  -webkit-transform: translateZ(0);
+.preview-title {
+  margin: 0 0 2px;
+  font-size: 1rem;
+}
+
+.preview-countdown {
+  margin: 2px 0 0;
+  font-size: 12px;
+}
+
+/* Image fits within available space, scales down to keep footer visible */
+.preview-image-wrap {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .preview-receipt-img {
-  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
-  display: block;
-  border-radius: 16px;
+  object-fit: contain;
+  border-radius: 12px;
   border: 1px solid rgba(255,255,255,0.14);
   background: #ffffff;
 }
 
-.preview-footer-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  flex-shrink: 0;
-  padding: 16px 0 32px 0;
+/* Preview timeout bar (iPad: visible countdown) */
+.preview-timeout-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.12);
+  border-radius: 2px;
+  overflow: hidden;
+  margin-top: 4px;
 }
+
+.preview-timeout-fill {
+  height: 100%;
+  background: var(--neon-pink);
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+
+/* Loading state (camera startup) */
+.loading-card {
+  text-align: center;
+  padding: 32px 24px;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  margin: 0 auto 20px;
+  border: 4px solid rgba(255,255,255,0.2);
+  border-top-color: var(--neon-pink);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Orientation prompt (landscape preferred) */
+.orientation-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0,0,0,0.92);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  pointer-events: none;
+}
+
+.orientation-overlay.visible {
+  display: flex;
+}
+
+.orientation-prompt {
+  text-align: center;
+  color: var(--text);
+}
+
+.orientation-icon {
+  display: block;
+  font-size: 56px;
+  margin-bottom: 20px;
+  animation: rotate-pulse 2s ease-in-out infinite;
+}
+
+@keyframes rotate-pulse {
+  0%, 100% { transform: rotate(-15deg); opacity: 1; }
+  50% { transform: rotate(15deg); opacity: 0.85; }
+}
+
+.orientation-prompt p {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+/* Idle warning overlay (iPad: tap to stay) */
+.idle-warning-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.idle-warning-card {
+  background: var(--bg-1);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 16px;
+  padding: 28px 24px;
+  text-align: center;
+  min-width: 320px;
+  max-width: 320px;
+  box-sizing: border-box;
+}
+
+.idle-warning-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+  color: var(--text);
+}
+
+.idle-warning-card .idle-countdown-num {
+  display: inline-block;
+  min-width: 1.5ch;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.idle-warning-card .hint {
+  margin: 0 0 20px;
+}
+
+.idle-warning-card .neon-primary {
+  min-width: 120px;
+}
+
 
 .previewScroll {
   flex-shrink: 0;
@@ -369,20 +511,6 @@ a {
   display: block;
 }
 
-.preview-buttons {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  align-items: center;
-  position: relative;
-  z-index: 2; /* above scroll area for reliable taps */
-}
-
-.preview-buttons button {
-  position: relative;
-  z-index: 2;
-  cursor: pointer;
-}
 
 /* legacy previewCard for other screens if needed */
 .previewCard {
@@ -720,7 +848,7 @@ button:disabled {
   align-items: center;
   gap: 14px;
   width: 100%;
-  max-width: 860px;
+  max-width: 100%;
 }
 
 .camera-hint {
@@ -735,11 +863,12 @@ button:disabled {
 }
 
 .cameraCard {
-  width: min(860px, 100%);
-  max-height: min(58vh, 520px); /* keep Capture button in view */
+  width: 100%;
+  max-width: min(1100px, 100%);
+  max-height: min(68vh, 600px);
   border-radius: 22px;
   overflow: hidden;
-  background: rgba(255,255,255,0.05);
+  background: rgba(0,0,0,0.3);
   border: 1px solid rgba(255,255,255,0.14);
   box-shadow: var(--shadow);
   position: relative;
@@ -750,9 +879,8 @@ button:disabled {
   width: 100%;
   height: 100%;
   display: block;
-  background: #000;
-  /* object-fit will be set to 'contain' dynamically to match receipt preview exactly */
-  object-fit: contain;
+  object-fit: contain; /* show whole video, no cropping */
+  background: rgba(0,0,0,0.4);
   transform: scaleX(-1); /* Mirror the camera preview for selfie feel */
 }
 
@@ -893,4 +1021,60 @@ button:disabled {
 /* Stare animation runs continuously - more noticeable during pauses */
 .red-panda svg {
   animation: redPandaStare 1.8s ease-in-out infinite;
+}
+
+/* -----------------------------------------------------------
+   Landscape mode optimizations (iPad preferred orientation)
+----------------------------------------------------------- */
+
+@media (orientation: landscape) {
+  /* Wider content area in landscape */
+  .neon-stage {
+    max-width: 1100px;
+  }
+
+  .neon-topbar-inner,
+  .neon-footer-inner {
+    max-width: 1100px;
+  }
+
+  .neon-stage-wrap {
+    padding: 14px 20px;
+  }
+
+  .neon-stage-wrap--preview {
+    padding: 10px 16px;
+  }
+
+  /* Preview: use horizontal space for larger receipt display */
+  .preview-screen {
+    max-width: 960px;
+  }
+
+  /* Layout selection: more comfortable spacing */
+  .neon-card.neon-card--layout {
+    max-width: 720px;
+  }
+
+  .templateGrid {
+    gap: 16px;
+  }
+
+  /* Camera stage: more room for preview */
+  .camera-stage {
+    gap: 16px;
+  }
+
+  .camera-capture-btn {
+    min-height: 52px;
+    padding: 0 28px;
+    font-size: 1.0625rem;
+  }
+
+  /* Home CTA: larger touch target in landscape */
+  .neon-cta {
+    min-height: 56px;
+    padding: 16px 32px;
+    font-size: 1.125rem;
+  }
 }
