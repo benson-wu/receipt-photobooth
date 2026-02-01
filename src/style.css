@@ -966,61 +966,72 @@ button:disabled {
 }
 
 /* -----------------------------------------------------------
-   Animated Red Panda (runs side to side, pauses, stares, repeats)
+   Animated Red Panda (Neopet-style: bouncy, expressive, runs side to side)
 ----------------------------------------------------------- */
 
 @keyframes redPandaRun {
-  /* Run left to right (0-32%) */
-  0% {
-    transform: translateX(0) scaleX(1);
-  }
-  32% {
-    transform: translateX(calc(100vw - 100px)) scaleX(1);
-  }
-  /* Pause and stare at right (32-44%) */
-  32%, 44% {
-    transform: translateX(calc(100vw - 100px)) scaleX(1);
-  }
-  /* Turn around (44-49%) */
-  44%, 49% {
-    transform: translateX(calc(100vw - 100px)) scaleX(-1);
-  }
-  /* Run right to left (49-79%) */
-  49%, 79% {
-    transform: translateX(0) scaleX(-1);
-  }
-  /* Pause and stare at left (79-91%) */
-  79%, 91% {
-    transform: translateX(0) scaleX(-1);
-  }
-  /* Turn around (91-100%) */
-  91%, 100% {
-    transform: translateX(0) scaleX(1);
-  }
+  0% { transform: translateX(0) scaleX(1); }
+  32% { transform: translateX(calc(100vw - 100px)) scaleX(1); }
+  32%, 44% { transform: translateX(calc(100vw - 100px)) scaleX(1); }
+  44%, 49% { transform: translateX(calc(100vw - 100px)) scaleX(-1); }
+  49%, 79% { transform: translateX(0) scaleX(-1); }
+  79%, 91% { transform: translateX(0) scaleX(-1); }
+  91%, 100% { transform: translateX(0) scaleX(1); }
 }
 
-@keyframes redPandaStare {
-  0%, 100% {
-    transform: scale(1) translateY(0);
-  }
-  25% {
-    transform: scale(1.06) translateY(-1px);
-  }
-  50% {
-    transform: scale(1.12) translateY(-2px);
-  }
-  75% {
-    transform: scale(1.06) translateY(-1px);
-  }
+/* Neopet-style: bouncy idle (squash & stretch) */
+@keyframes redPandaBounce {
+  0%, 100% { transform: scale(1) translateY(0); }
+  25% { transform: scale(1.04) translateY(-3px); }
+  50% { transform: scale(0.98) translateY(1px); }
+  75% { transform: scale(1.03) translateY(-2px); }
+}
+
+/* Blinking eyes */
+@keyframes redPandaBlink {
+  0%, 45%, 55%, 100% { transform: scaleY(1); }
+  48%, 52% { transform: scaleY(0.08); }
+}
+
+/* Tail sway (expressive) */
+@keyframes redPandaTailSway {
+  0%, 100% { transform: rotate(-6deg); }
+  50% { transform: rotate(6deg); }
+}
+
+/* Ear twitch */
+@keyframes redPandaEarTwitch {
+  0%, 90%, 100% { transform: rotate(0deg); }
+  93% { transform: rotate(-4deg); }
+  96% { transform: rotate(2deg); }
 }
 
 .red-panda {
   animation: redPandaRun 15s ease-in-out infinite;
 }
 
-/* Stare animation runs continuously - more noticeable during pauses */
 .red-panda svg {
-  animation: redPandaStare 1.8s ease-in-out infinite;
+  animation: redPandaBounce 2.2s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.red-panda .panda-eyes {
+  transform-origin: 50px 32px;
+  animation: redPandaBlink 4.5s ease-in-out infinite;
+}
+
+.red-panda .panda-tail {
+  animation: redPandaTailSway 1.5s ease-in-out infinite;
+}
+
+.red-panda .panda-ear-left {
+  transform-origin: 32px 14px;
+  animation: redPandaEarTwitch 5s ease-in-out infinite;
+}
+
+.red-panda .panda-ear-right {
+  transform-origin: 68px 14px;
+  animation: redPandaEarTwitch 5s ease-in-out infinite 0.3s;
 }
 
 /* -----------------------------------------------------------

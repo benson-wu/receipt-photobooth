@@ -138,94 +138,107 @@ function lanternSet() {
   `;
 }
 
-// Red panda SVG in neon line style with natural colors
+// Red panda SVG — Neopet-style animated, accurate face (white mask + tear stripes)
 let pandaUid = 0;
 function redPandaHtml() {
   pandaUid += 1;
   const uid = `panda_${pandaUid}`;
-  // Colors matching the red panda drawing: reddish-orange, darker brown, white, black
-  const redOrange = "#ff6b35"; // Vibrant reddish-orange for head/back
-  const darkBrown = "#cc4125"; // Darker reddish-brown for underbelly/legs/face
-  const whiteGlow = "#ffffff"; // White for face patches
-  const black = "#000000"; // Black for eyes/nose
-  
+  const redOrange = "#e85d3a";
+  const darkBrown = "#b83d28";
+  const midBrown = "#d45a38";
+  const white = "#ffffff";
+  const cream = "#fff8f0";
+  const black = "#2d1f1a";
+  const tearStripe = "#8b4513";
+
   return `
     <div class="red-panda" style="position: absolute; bottom: 12%; left: 0; z-index: 2; pointer-events: none;">
       <svg width="100" height="90" viewBox="0 0 100 90" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <defs>
-          <filter id="panda-glow-red-${uid}" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
-          </filter>
-          <filter id="panda-glow-white-${uid}" x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
-            <feMerge>
-              <feMergeNode in="coloredBlur" />
-              <feMergeNode in="SourceGraphic" />
-            </feMerge>
+          <linearGradient id="panda-head-grad-${uid}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="${redOrange}" stop-opacity="0.4" />
+            <stop offset="100%" stop-color="${darkBrown}" stop-opacity="0.25" />
+          </linearGradient>
+          <linearGradient id="panda-body-grad-${uid}" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="${redOrange}" stop-opacity="0.35" />
+            <stop offset="100%" stop-color="${darkBrown}" stop-opacity="0.4" />
+          </linearGradient>
+          <linearGradient id="panda-tail-grad-${uid}" x1="100%" y1="50%" x2="0%" y2="50%">
+            <stop offset="0%" stop-color="${redOrange}" stop-opacity="0.5" />
+            <stop offset="100%" stop-color="${darkBrown}" stop-opacity="0.4" />
+          </linearGradient>
+          <filter id="panda-glow-${uid}" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="1.5" result="blur" />
+            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
           </filter>
         </defs>
-        
-        <!-- Red panda in neon line style with natural colors -->
-        <!-- Head (reddish-orange) -->
-        <path d="M 50 20 Q 65 20, 70 30 Q 70 40, 65 45 Q 50 50, 35 45 Q 30 40, 30 30 Q 30 20, 50 20" 
-              fill="${redOrange}" fill-opacity="0.15" stroke="${redOrange}" stroke-width="2" filter="url(#panda-glow-red-${uid})" />
-        <!-- Face section (darker brown) -->
-        <path d="M 40 30 Q 50 35, 60 30 Q 60 42, 50 45 Q 40 42, 40 30" 
-              fill="${darkBrown}" fill-opacity="0.2" stroke="${darkBrown}" stroke-width="1.8" filter="url(#panda-glow-red-${uid})" />
-        <!-- Left ear (rounded, positioned on side of head) -->
-        <path d="M 38 18 Q 35 15, 32 18 Q 32 22, 35 25 Q 38 25, 40 22 Z" 
-              fill="${redOrange}" fill-opacity="0.15" stroke="${redOrange}" stroke-width="1.5" filter="url(#panda-glow-red-${uid})" />
-        <ellipse cx="36" cy="21" rx="2.5" ry="3" fill="${whiteGlow}" fill-opacity="0.3" stroke="${whiteGlow}" stroke-width="1" filter="url(#panda-glow-white-${uid})" />
-        <!-- Right ear (rounded, positioned on side of head) -->
-        <path d="M 62 18 Q 65 15, 68 18 Q 68 22, 65 25 Q 62 25, 60 22 Z" 
-              fill="${redOrange}" fill-opacity="0.15" stroke="${redOrange}" stroke-width="1.5" filter="url(#panda-glow-red-${uid})" />
-        <ellipse cx="64" cy="21" rx="2.5" ry="3" fill="${whiteGlow}" fill-opacity="0.3" stroke="${whiteGlow}" stroke-width="1" filter="url(#panda-glow-white-${uid})" />
-        <!-- Body (reddish-orange top, darker brown bottom) -->
-        <path d="M 35 50 Q 30 50, 30 55 L 30 70 Q 30 75, 35 75 L 65 75 Q 70 75, 70 70 L 70 55 Q 70 50, 65 50 Z" 
-              fill="${redOrange}" fill-opacity="0.15" stroke="${redOrange}" stroke-width="2" filter="url(#panda-glow-red-${uid})" />
-        <path d="M 35 60 L 65 60 L 65 75 L 35 75 Z" 
-              fill="${darkBrown}" fill-opacity="0.2" stroke="${darkBrown}" stroke-width="1.5" filter="url(#panda-glow-red-${uid})" />
-        <!-- Fluffy tail with striped pattern (bushy, filled shape) -->
-        <!-- Tail base (wider, connects to body) -->
-        <ellipse cx="30" cy="65" rx="6" ry="4" fill="${redOrange}" fill-opacity="0.2" stroke="${redOrange}" stroke-width="2" filter="url(#panda-glow-red-${uid})" transform="rotate(-10 30 65)" />
-        <!-- Tail main body (curved, fluffy shape) -->
-        <path d="M 26 63 Q 15 58, 10 50 Q 6 42, 7 34 Q 9 26, 14 20 Q 18 16, 22 18" 
-              fill="${redOrange}" fill-opacity="0.2" stroke="${redOrange}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" />
-        <!-- Fluffy tail outline (wider, more voluminous) -->
-        <path d="M 34 63 Q 18 56, 12 46 Q 8 38, 9 30 Q 11 22, 16 18 Q 20 14, 24 16" 
-              fill="none" stroke="${redOrange}" stroke-width="2" stroke-opacity="0.6" filter="url(#panda-glow-red-${uid})" />
-        <!-- Tail stripes as bands (darker brown rings - more prominent) -->
-        <!-- First stripe band (near base) -->
-        <ellipse cx="22" cy="61" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-12 22 61)" />
-        <!-- Second stripe band -->
-        <ellipse cx="17" cy="56" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-18 17 56)" />
-        <!-- Third stripe band -->
-        <ellipse cx="13" cy="50" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-24 13 50)" />
-        <!-- Fourth stripe band -->
-        <ellipse cx="10" cy="43" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-28 10 43)" />
-        <!-- Fifth stripe band -->
-        <ellipse cx="8" cy="36" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-32 8 36)" />
-        <!-- Sixth stripe band -->
-        <ellipse cx="8" cy="29" rx="6" ry="4" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-36 8 29)" />
-        <!-- Seventh stripe band (near tip) -->
-        <ellipse cx="11" cy="23" rx="5" ry="3.5" fill="${darkBrown}" fill-opacity="0.7" stroke="${darkBrown}" stroke-width="2.5" filter="url(#panda-glow-red-${uid})" transform="rotate(-40 11 23)" />
-        <!-- Face features (black eyes with white outline only) -->
-        <ellipse cx="46" cy="32" rx="3" ry="2.5" fill="${whiteGlow}" fill-opacity="0.3" stroke="${whiteGlow}" stroke-width="1.5" filter="url(#panda-glow-white-${uid})" />
-        <ellipse cx="54" cy="32" rx="3" ry="2.5" fill="${whiteGlow}" fill-opacity="0.3" stroke="${whiteGlow}" stroke-width="1.5" filter="url(#panda-glow-white-${uid})" />
-        <circle cx="46" cy="32" r="2" fill="${black}" fill-opacity="0.9" filter="url(#panda-glow-red-${uid})" />
-        <circle cx="54" cy="32" r="2" fill="${black}" fill-opacity="0.9" filter="url(#panda-glow-red-${uid})" />
-        <!-- Nose (small triangle/ellipse) -->
-        <ellipse cx="50" cy="37" rx="1.5" ry="1" fill="${black}" fill-opacity="0.8" filter="url(#panda-glow-red-${uid})" />
-        <!-- Mouth (subtle upward-curving smile) -->
-        <path d="M 47 39 Q 50 40.5, 53 39" 
-              stroke="${black}" stroke-width="1.5" fill="none" stroke-linecap="round" filter="url(#panda-glow-red-${uid})" />
-        <!-- Front legs (darker brown) -->
-        <ellipse cx="42" cy="68" rx="3" ry="6" fill="${darkBrown}" fill-opacity="0.2" stroke="${darkBrown}" stroke-width="1.5" filter="url(#panda-glow-red-${uid})" />
-        <ellipse cx="58" cy="68" rx="3" ry="6" fill="${darkBrown}" fill-opacity="0.2" stroke="${darkBrown}" stroke-width="1.5" filter="url(#panda-glow-red-${uid})" />
+
+        <!-- Tail (group for animation) -->
+        <g class="panda-tail" transform-origin="28 70">
+          <path d="M 26 66 Q 12 56, 6 44 Q 2 32, 4 20 Q 8 12, 16 10 Q 20 12, 20 18" 
+                fill="url(#panda-tail-grad-${uid})" stroke="${redOrange}" stroke-width="2" stroke-linejoin="round" filter="url(#panda-glow-${uid})" />
+          <ellipse cx="18" cy="58" rx="5" ry="3.5" fill="${darkBrown}" fill-opacity="0.9" transform="rotate(-12 18 58)" filter="url(#panda-glow-${uid})" />
+          <ellipse cx="12" cy="50" rx="5" ry="3.5" fill="${cream}" fill-opacity="0.6" transform="rotate(-20 12 50)" filter="url(#panda-glow-${uid})" />
+          <ellipse cx="8" cy="40" rx="5" ry="3.5" fill="${darkBrown}" fill-opacity="0.9" transform="rotate(-28 8 40)" filter="url(#panda-glow-${uid})" />
+          <ellipse cx="6" cy="30" rx="4.5" ry="3" fill="${cream}" fill-opacity="0.6" transform="rotate(-35 6 30)" filter="url(#panda-glow-${uid})" />
+          <ellipse cx="7" cy="22" rx="4" ry="2.8" fill="${darkBrown}" fill-opacity="0.9" transform="rotate(-42 7 22)" filter="url(#panda-glow-${uid})" />
+        </g>
+
+        <!-- Body -->
+        <path d="M 32 50 Q 26 54, 26 60 L 26 74 Q 26 78, 32 80 L 68 80 Q 74 78, 74 74 L 74 60 Q 74 54, 68 50 Q 58 47, 50 48 Q 42 47, 32 50" 
+              fill="url(#panda-body-grad-${uid})" stroke="${redOrange}" stroke-width="2" stroke-linejoin="round" filter="url(#panda-glow-${uid})" />
+
+        <!-- Head (round, reddish) -->
+        <path d="M 50 16 Q 72 16, 76 28 Q 78 40, 70 48 Q 58 54, 50 54 Q 42 54, 30 48 Q 22 40, 24 28 Q 28 16, 50 16" 
+              fill="url(#panda-head-grad-${uid})" stroke="${redOrange}" stroke-width="2" stroke-linejoin="round" filter="url(#panda-glow-${uid})" />
+
+        <!-- Ears (triangular, white inside) -->
+        <g class="panda-ear panda-ear-left">
+          <path d="M 36 14 L 28 8 L 26 16 Q 28 20, 34 18 Z" fill="${redOrange}" fill-opacity="0.6" stroke="${redOrange}" stroke-width="1.5" filter="url(#panda-glow-${uid})" />
+          <path d="M 32 12 L 28 10 L 28 14 Z" fill="${white}" fill-opacity="0.7" filter="url(#panda-glow-${uid})" />
+        </g>
+        <g class="panda-ear panda-ear-right">
+          <path d="M 64 14 L 72 8 L 74 16 Q 72 20, 66 18 Z" fill="${redOrange}" fill-opacity="0.6" stroke="${redOrange}" stroke-width="1.5" filter="url(#panda-glow-${uid})" />
+          <path d="M 68 12 L 72 10 L 72 14 Z" fill="${white}" fill-opacity="0.7" filter="url(#panda-glow-${uid})" />
+        </g>
+
+        <!-- White face mask (red panda: white muzzle + cheeks) -->
+        <path d="M 32 28 Q 40 24, 50 26 Q 60 24, 68 28 Q 72 36, 70 44 Q 66 50, 50 52 Q 34 50, 30 44 Q 28 36, 32 28" 
+              fill="${white}" fill-opacity="0.95" stroke="${cream}" stroke-width="1" stroke-opacity="0.5" filter="url(#panda-glow-${uid})" />
+
+        <!-- Tear stripes (moved away from eyes — outer cheeks) -->
+        <path d="M 32 28 L 26 38 L 28 41" fill="none" stroke="${tearStripe}" stroke-width="1.8" stroke-opacity="0.5" stroke-linecap="round" filter="url(#panda-glow-${uid})" />
+        <path d="M 68 28 L 74 38 L 72 41" fill="none" stroke="${tearStripe}" stroke-width="1.8" stroke-opacity="0.5" stroke-linecap="round" filter="url(#panda-glow-${uid})" />
+
+        <!-- Dark eye patches (softer — friendly, not furrowed) -->
+        <ellipse cx="42" cy="32" rx="4" ry="3.5" fill="${tearStripe}" fill-opacity="0.25" filter="url(#panda-glow-${uid})" />
+        <ellipse cx="58" cy="32" rx="4" ry="3.5" fill="${tearStripe}" fill-opacity="0.25" filter="url(#panda-glow-${uid})" />
+
+        <!-- Eyes (rounder = friendlier) -->
+        <g class="panda-eyes">
+          <circle class="panda-eye" cx="42" cy="32" r="2.5" fill="${black}" filter="url(#panda-glow-${uid})" />
+          <circle class="panda-eye" cx="58" cy="32" r="2.5" fill="${black}" filter="url(#panda-glow-${uid})" />
+          <circle cx="43" cy="31" r="0.8" fill="${white}" filter="url(#panda-glow-${uid})" />
+          <circle cx="59" cy="31" r="0.8" fill="${white}" filter="url(#panda-glow-${uid})" />
+        </g>
+
+        <!-- Nose (small, black, round) -->
+        <ellipse cx="50" cy="39" rx="2" ry="1.5" fill="${black}" filter="url(#panda-glow-${uid})" />
+
+        <!-- Mouth (big happy smile) -->
+        <path class="panda-mouth" d="M 42 41 Q 50 48, 58 41" stroke="${black}" stroke-width="1.5" fill="none" stroke-linecap="round" filter="url(#panda-glow-${uid})" />
+
+        <!-- Whiskers -->
+        <path d="M 36 36 L 20 34" stroke="${black}" stroke-width="0.5" stroke-opacity="0.5" filter="url(#panda-glow-${uid})" />
+        <path d="M 36 38 L 18 38" stroke="${black}" stroke-width="0.5" stroke-opacity="0.5" filter="url(#panda-glow-${uid})" />
+        <path d="M 36 40 L 20 42" stroke="${black}" stroke-width="0.5" stroke-opacity="0.5" filter="url(#panda-glow-${uid})" />
+        <path d="M 64 36 L 80 34" stroke="${black}" stroke-width="0.5" stroke-opacity="0.5" filter="url(#panda-glow-${uid})" />
+        <path d="M 64 38 L 82 38" stroke="${black}" stroke-width="0.5" stroke-opacity="0.5" filter="url(#panda-glow-${uid})" />
+        <path d="M 64 40 L 80 42" stroke="${black}" stroke-width="0.5" stroke-opacity="0.5" filter="url(#panda-glow-${uid})" />
+
+        <!-- Paws -->
+        <ellipse cx="40" cy="74" rx="4" ry="6" fill="${darkBrown}" fill-opacity="0.5" stroke="${darkBrown}" stroke-width="1.5" filter="url(#panda-glow-${uid})" />
+        <ellipse cx="60" cy="74" rx="4" ry="6" fill="${darkBrown}" fill-opacity="0.5" stroke="${darkBrown}" stroke-width="1.5" filter="url(#panda-glow-${uid})" />
       </svg>
     </div>
   `;
