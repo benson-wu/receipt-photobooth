@@ -57,9 +57,10 @@ let previewCountdownTimer = null;
 let publicBaseUrl = null;
 
 // Print filters — developer-only constants, applied only when printing (not in preview)
-const PRINT_FILTER_CONTRAST = 0.5;
-const PRINT_FILTER_BRIGHTNESS = 2;
-const PRINT_FILTER_SATURATION = 0.5;
+const PRINT_FILTER_CONTRAST = 1.0;    // preserve contrast for detail
+const PRINT_FILTER_BRIGHTNESS = 3.2;  // strong boost (thermal prints tend dark)
+const PRINT_FILTER_SATURATION = 0.6;
+const PRINT_FILTER_GAMMA = 0.82;      // <1 brightens shadows (detail in darks)
 
 // capture cancellation / concurrency
 let captureToken = 0;
@@ -298,10 +299,11 @@ async function waitForVideoReady(videoEl) {
 }
 
 // -------------------- Shared Neon Shell Builder --------------------
-function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "", footerRightHtml = "", stageClass = "", wrapClass = "" }) {
-  // Ensure persistent lanterns are initialized (they stay in body, never destroyed)
+function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "", footerRightHtml = "", stageClass = "", wrapClass = "", step = null }) {
   initPersistentLanterns();
-  
+  const stepDots = step != null
+    ? `<div class="step-dots" aria-hidden="true">${[1, 2, 3].map((i) => `<span class="${i <= step ? "active" : ""}"></span>`).join("")}</div>`
+    : "";
   app.innerHTML = `
     <div class="neon-shell">
       <div class="bg-atmosphere"></div>
@@ -325,8 +327,11 @@ function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "
 
       <footer class="neon-footer">
         <div class="neon-footer-inner">
-          <div>${footerLeftHtml}</div>
-          <div class="footer-actions">${footerRightHtml}</div>
+          <div class="footer-main">
+            <div>${footerLeftHtml}</div>
+            <div class="footer-actions">${footerRightHtml}</div>
+          </div>
+          ${stepDots}
         </div>
       </footer>
     </div>
@@ -336,7 +341,8 @@ function renderNeonShell({ topRightHtml = "", stageHtml = "", footerLeftHtml = "
 // -------------------- Screens --------------------
 function renderStart() {
   invalidateCaptureFlow();
-  armIdleTimer();
+  idleTimerEnabled = false;
+  clearIdleTimer();
 
   // Ensure persistent lanterns are initialized (they stay in body, never destroyed)
   initPersistentLanterns();
@@ -394,12 +400,15 @@ function renderTemplateSelect() {
   ).join("");
 
   renderNeonShell({
+    step: 1,
     topRightHtml: `<div class="badge"><b>1</b> / 3</div>`,
     stageHtml: `
       <div class="neon-card neon-card--layout">
-        <h2>Choose your layout</h2>
-        <div class="hint">Pick a template. For 2+ shots you'll press Start, then we'll auto-capture with a countdown.</div>
+        <h2>Choose layout</h2>
+        <div class="card-divider"></div>
+        <div class="hint">Tap a layout, then Continue. 2+ shots use auto mode (Start, then countdown).</div>
         <div class="templateGrid">${cardsHtml}</div>
+        ${!selectedTemplateId ? '<p class="empty-hint">Select a layout to continue</p>' : ""}
       </div>
     `,
     footerRightHtml: `
@@ -431,8 +440,8 @@ function renderTemplateSelect() {
     shots = [];
     autoArmed = false;
 
-    // Show loading state while camera starts (iPad-specific: avoids blank screen)
     renderNeonShell({
+      step: 2,
       topRightHtml: `<div class="badge"><b>2</b> / 3</div>`,
       stageHtml: `
         <div class="neon-card loading-card">
@@ -471,6 +480,7 @@ function renderCamera() {
   const needsStart = auto && !autoArmed && shots.length === 0;
 
   renderNeonShell({
+    step: 2,
     topRightHtml: `<div class="badge badge--shot" id="shotBadge">Shot <b>${shots.length + 1}</b> of <b>${requiredShots}</b></div>`,
     stageHtml: `
       <div class="camera-stage">
@@ -714,30 +724,37 @@ async function captureWithCountdown(videoEl, tokenFromRender) {
   }
 }
 
-// -------------------- Photo filters (exact copy from camera-filter-demo) --------------------
-function applyFilters(imageData) {
+// -------------------- Photo filters --------------------
+function applyPrintFilters(imageData) {
   const data = imageData.data;
-  const contrast = filterContrast;
-  const brightness = filterBrightness;
-  const saturation = filterSaturation;
+  const contrast = PRINT_FILTER_CONTRAST;
+  const brightness = PRINT_FILTER_BRIGHTNESS;
+  const saturation = PRINT_FILTER_SATURATION;
+  const gamma = PRINT_FILTER_GAMMA;
 
   for (let i = 0; i < data.length; i += 4) {
     let r = data[i];
     let g = data[i + 1];
     let b = data[i + 2];
 
-    // Brightness: scale around 0
+    // Brightness
     r = r * brightness;
     g = g * brightness;
     b = b * brightness;
 
-    // Contrast: (p - 128) * factor + 128
-    const contrastFactor = contrast;
-    r = (r - 128) * contrastFactor + 128;
-    g = (g - 128) * contrastFactor + 128;
-    b = (b - 128) * contrastFactor + 128;
+    // Contrast
+    r = (r - 128) * contrast + 128;
+    g = (g - 128) * contrast + 128;
+    b = (b - 128) * contrast + 128;
 
-    // Saturation: blend with luminance
+    // Gamma (brightens shadows — helps thermal printers)
+    const to01 = (v) => Math.max(0, Math.min(255, v)) / 255;
+    const from01 = (v) => Math.pow(v, gamma) * 255;
+    r = from01(to01(r));
+    g = from01(to01(g));
+    b = from01(to01(b));
+
+    // Saturation
     const gray = 0.299 * r + 0.587 * g + 0.114 * b;
     r = gray + (r - gray) * saturation;
     g = gray + (g - gray) * saturation;
@@ -798,11 +815,15 @@ function drawText(ctx, text, x, y, opts = {}) {
     weight = "600",
     color = "#111827",
     font = "ui-monospace, SFMono-Regular, Menlo, monospace",
+    align = "left",
   } = opts;
 
+  ctx.save();
   ctx.fillStyle = color;
   ctx.font = `${weight} ${size}px ${font}`;
+  ctx.textAlign = align;
   ctx.fillText(text, x, y);
+  ctx.restore();
 }
 
 function drawDashedLine(ctx, x1, y, x2) {
@@ -852,23 +873,28 @@ async function buildCompositeDataUrl(applyPrintFilter = false) {
   y += 18;
 
   const items = [
-    ["FRIED CHICKEN", "1", "8.49"],
-    ["TTEOKBOKKI", "1", "7.25"],
-    ["DYNAMITE SPRITZ", "1", "6.96"],
-    ["KOGI DOG", "1", "8.99"],
+    ["FRIED CHICKEN", "1", "5.99"],
+    ["BOSSAM, BUT WILL IT TACO?", "1", "6.50"],
+    ["KIMCHI JEON", "1", "4.00"],
+    ["TTEOKBOKKI", "1", "5.00"],
+    ["MANDU", "1", "3.50"],
+    ["RAMYEON", "1", "5.20"],
+    ["HALLABONG SPRITZ", "1", "1.50"],
   ];
 
   const total = items.reduce((sum, [, , price]) => sum + parseFloat(price), 0);
   const totalStr = total.toFixed(2);
 
-  drawText(ctx, "ITEM         QTY   PRICE", pad, y, { size: 14, weight: "800" });
+  const qtyPriceX = W - pad;
+  drawText(ctx, "ITEM", pad, y, { size: 14, weight: "800" });
+  drawText(ctx, "QTY   PRICE", qtyPriceX, y, { size: 14, weight: "800", align: "right" });
   y += 18;
 
   for (const [name, qty, price] of items) {
-    const left = String(name).slice(0, 14).padEnd(14, " ");
-    const mid = String(qty).padStart(2, " ");
-    const right = String(price).padStart(5, " ");
-    drawText(ctx, `${left} ${mid}  ${right}`, pad, y, { size: 14, weight: "600" });
+    const itemName = String(name).slice(0, 28);
+    const qtyPrice = `${qty}   ${parseFloat(price).toFixed(2)}`;
+    drawText(ctx, itemName, pad, y, { size: 14, weight: "600" });
+    drawText(ctx, qtyPrice, qtyPriceX, y, { size: 14, weight: "600", align: "right" });
     y += 16;
   }
 
@@ -925,7 +951,8 @@ async function buildCompositeDataUrl(applyPrintFilter = false) {
   drawDashedLine(ctx, pad, y, W - pad);
   y += 18;
 
-  drawText(ctx, "TOTAL".padEnd(18, " ") + `$${totalStr}`, pad, y, { size: 18, weight: "900" });
+  drawText(ctx, "TOTAL", pad, y, { size: 18, weight: "900" });
+  drawText(ctx, `$${totalStr}`, qtyPriceX, y, { size: 18, weight: "900", align: "right" });
   y += 20;
   drawText(ctx, "THANK YOU FOR CELEBRATING!", pad, y, { size: 15, weight: "700" });
   y += 22;
@@ -1057,6 +1084,7 @@ function showPreview(compositeDataUrl) {
   const totalSeconds = PREVIEW_TIMEOUT_SECONDS;
 
   renderNeonShell({
+    step: 2,
     topRightHtml: `<div class="badge"><b>2</b> / 3</div>`,
     stageClass: "neon-stage--preview",
     wrapClass: "neon-stage-wrap--preview",
@@ -1089,7 +1117,7 @@ function showPreview(compositeDataUrl) {
     secondsLeft--;
     const pct = Math.max(0, (secondsLeft / totalSeconds) * 100);
     if (timeoutFill) timeoutFill.style.width = `${pct}%`;
-    if (countdownHint) countdownHint.textContent = secondsLeft > 0 ? `Print or retake within ${secondsLeft}s` : "Resetting…";
+    if (countdownHint) countdownHint.textContent = secondsLeft > 0 ? "Print or Retake" : "Resetting…";
     if (printBtn) printBtn.textContent = secondsLeft > 0 ? "Print" : "Print";
     if (secondsLeft <= 0) {
       clearPreviewCountdown();
@@ -1131,6 +1159,7 @@ async function doPrint(compositeDataUrl, previewDataUrl = null) {
   armIdleTimer();
 
   renderNeonShell({
+    step: 3,
     topRightHtml: `<div class="badge"><b>3</b> / 3</div>`,
     stageHtml: `
       <div class="neon-card" style="text-align:center;">
