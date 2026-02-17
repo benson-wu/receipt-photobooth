@@ -3,6 +3,9 @@ import QRCode from "qrcode";
 
 const app = document.querySelector("#app");
 
+// When hosted on Netlify, set VITE_API_BASE_URL to your backend (e.g. ngrok URL) so API calls reach your Mac.
+const API_BASE = typeof import.meta.env.VITE_API_BASE_URL === "string" ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "") : "";
+
 // -------------------- Templates --------------------
 const TEMPLATES = [
   { id: "single", name: "1 Photo", shots: 1 },
@@ -989,7 +992,7 @@ async function buildCompositeDataUrl(applyPrintFilter = false) {
 
 // -------------------- Save / Print (send to Mac) --------------------
 async function sendToMacAndPrint(compositeDataUrl, { print = true } = {}) {
-  const res = await fetch("/api/print", {
+  const res = await fetch(`${API_BASE}/api/print`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({

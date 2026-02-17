@@ -240,6 +240,35 @@ Create a QR code pointing to one of these so guests can open the missions page (
 
 ---
 
+## Deploy to Netlify (public URL, no Wi‑Fi required)
+
+You can host the **static frontend** on Netlify (e.g. **pocha31.netlify.app**) so guests can open the app without joining your Wi‑Fi. The **backend** (printer, API) still runs on your Mac; when you run the party you start the server (e.g. `pocha` with ngrok) and point the frontend at it.
+
+### 1. Connect the repo to Netlify
+
+1. In [Netlify](https://app.netlify.com), add a new site → **Import an existing project** → connect your Git provider and select the **receipt-photobooth** repo.
+2. Netlify will read **netlify.toml**: build command `npm run build`, publish directory `dist`. Leave those as-is.
+3. Deploy. The site will be at **pocha31.netlify.app** (or the name you chose).
+
+### 2. Set the backend URL when you run the party
+
+The frontend needs to know where your API lives. When you run the party:
+
+1. Start your backend (e.g. run **`pocha`** so ngrok starts and your Mac serves the API).
+2. Copy the **ngrok HTTPS URL** (e.g. `https://abc123.ngrok-free.app`).
+3. In Netlify: **Site settings → Environment variables** → add:
+   - **Key:** `VITE_API_BASE_URL`
+   - **Value:** your ngrok URL (no trailing slash), e.g. `https://abc123.ngrok-free.app`
+4. Trigger a **new deploy** (Deploys → Trigger deploy → Deploy site) so the build uses the new variable.
+
+After that, anyone can open **https://pocha31.netlify.app** (photobooth) or **https://pocha31.netlify.app/missions** (missions); the app will call your Mac via ngrok. Your Mac must be on and running `pocha` (or the server + ngrok) for print and missions to work.
+
+### 3. Custom domain (optional)
+
+In Netlify: **Site settings → Domain management** → **Add custom domain** and follow the steps. Netlify will give you DNS records to add at your registrar. Once DNS is set, the site is available at your domain.
+
+---
+
 ## Useful commands
 
 ### Get your Mac LAN IP address

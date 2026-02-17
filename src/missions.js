@@ -1,7 +1,8 @@
 import "./missions.css";
 
 const app = document.getElementById("missions-app");
-const apiBase = "";
+// When hosted on Netlify, set VITE_API_BASE_URL to your backend (e.g. ngrok URL).
+const apiBase = typeof import.meta.env.VITE_API_BASE_URL === "string" ? import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "") : "";
 
 function renderForm() {
   app.innerHTML = `
