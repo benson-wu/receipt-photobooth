@@ -9,6 +9,7 @@ const sharp = require("sharp");
 const getPixels = require("get-pixels");
 const escpos = require("escpos");
 escpos.USB = require("escpos-usb");
+const { addJob, waitForJob, setProcessor } = require("./print-queue");
 
 const getPixelsAsync = promisify(getPixels);
 
@@ -29,7 +30,41 @@ const KEY_PATH = path.join(__dirname, "certs", "key.pem");
 
 // Where we save images on the Mac:
 const SAVED_DIR = path.join(__dirname, "saved");
+const DATA_DIR = path.join(__dirname, "data");
+const MISSIONS_PATH = path.join(DATA_DIR, "missions.json");
+const ISSUANCE_PATH = path.join(DATA_DIR, "issuance.json");
 fs.mkdirSync(SAVED_DIR, { recursive: true });
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
+function loadMissions() {
+  try {
+    const raw = fs.readFileSync(MISSIONS_PATH, "utf8");
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    console.warn("Could not load missions.json:", e.message);
+    return [];
+  }
+}
+
+function loadIssuance() {
+  try {
+    if (!fs.existsSync(ISSUANCE_PATH)) return [];
+    const raw = fs.readFileSync(ISSUANCE_PATH, "utf8");
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function appendIssuance(entry) {
+  const list = loadIssuance();
+  list.push(entry);
+  fs.writeFileSync(ISSUANCE_PATH, JSON.stringify(list, null, 2), "utf8");
+}
+
+const missionsList = loadMissions();
 
 // 80mm thermal receipt: scale to fit printable width (288px leaves margin so QR stays centered)
 const THERMAL_WIDTH_PX = 288;
@@ -79,6 +114,52 @@ async function printToThermal(imageBuffer) {
   }
 }
 
+/**
+ * Print plain text to thermal printer (for mission receipts). Lines separated by \n.
+ */
+async function printTextToThermal(textContent) {
+  let device = null;
+  try {
+    const devices = escpos.USB.findPrinter();
+    if (!devices || devices.length === 0) {
+      return { printed: false, error: "No USB printer found" };
+    }
+    device = new escpos.USB(devices[0]);
+    await new Promise((resolve, reject) => {
+      device.open((err) => (err ? reject(err) : resolve()));
+    });
+    const printer = await escpos.Printer.create(device);
+    const lines = String(textContent).split(/\r?\n/).filter(Boolean);
+    printer.align("lt");
+    for (const line of lines) {
+      printer.text(line.trim() || " ");
+      printer.text("\n");
+    }
+    printer.feed(1).cut();
+    await new Promise((resolve, reject) => {
+      printer.flush((err) => (err ? reject(err) : resolve()));
+    });
+    await new Promise((resolve, reject) => {
+      device.close((err) => (err ? reject(err) : resolve()));
+    });
+    return { printed: true };
+  } catch (e) {
+    if (device) {
+      try {
+        device.close(() => {});
+      } catch (_) {}
+    }
+    return { printed: false, error: e && e.message ? e.message : String(e) };
+  }
+}
+
+// -------------------- Print queue: single processor for image + text --------------------
+setProcessor(async (job) => {
+  if (job.type === "image") return printToThermal(job.payload);
+  if (job.type === "text") return printTextToThermal(job.payload);
+  return { printed: false, error: "Unknown job type" };
+});
+
 // -------------------- Middleware --------------------
 app.use(express.json({ limit: "25mb" }));
 
@@ -99,9 +180,85 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, port: PORT });
 });
 
+// Diagnostic: list USB printers seen by escpos-usb (helps debug "No USB printer found")
+app.get("/api/printers", (req, res) => {
+  try {
+    const devices = escpos.USB.findPrinter();
+    const count = devices && devices.length ? devices.length : 0;
+    const list = (devices || []).map((d, i) => ({
+      index: i,
+      vendorId: d.vendorId || d.deviceDescriptor?.idVendor,
+      productId: d.productId || d.deviceDescriptor?.idProduct,
+    }));
+    res.json({ ok: true, found: count, devices: list });
+  } catch (e) {
+    res.json({ ok: false, error: e?.message || String(e), found: 0, devices: [] });
+  }
+});
+
 // Frontend fetches this to know whether to use ngrok/public URL for QR codes
 app.get("/api/config", (req, res) => {
   res.json({ publicBaseUrl: PUBLIC_BASE_URL });
+});
+
+// -------------------- Missions API --------------------
+function formatMissionReceipt(name, missions, timeStr) {
+  const lines = [
+    "POCHA 31 – CONFIDENTIAL",
+    "Player: " + name,
+    "Time: " + timeStr,
+    "MISSION 1: " + (missions[0] || ""),
+    "MISSION 2: " + (missions[1] || ""),
+    "MISSION 3: " + (missions[2] || ""),
+    "If completed:",
+    "I GOT YOU",
+    "Do not show anyone.",
+  ];
+  return lines.join("\n");
+}
+
+function pickRandomMissions(list, n = 3) {
+  const shuffled = [...list].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, n);
+}
+
+app.get("/api/missions/list", (req, res) => {
+  res.json(loadMissions());
+});
+
+app.post("/api/missions/submit", (req, res) => {
+  try {
+    const rawName = (req.body && req.body.name) ? String(req.body.name).trim() : "";
+    if (!rawName) {
+      return res.status(400).json({ error: "Name is required" });
+    }
+    const nameKey = rawName.toLowerCase();
+    const issuance = loadIssuance();
+    const alreadyUsed = issuance.some((e) => e.name.toLowerCase() === nameKey);
+    if (alreadyUsed) {
+      return res.status(200).json({
+        blocked: true,
+        message: "Nice try. Ask the host if you need help.",
+      });
+    }
+
+    const list = loadMissions();
+    if (list.length < 3) {
+      return res.status(500).json({ error: "Not enough missions configured" });
+    }
+    const missions = pickRandomMissions(list, 3);
+    const timeStr = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+
+    appendIssuance({ name: rawName, timestamp: new Date().toISOString(), missions });
+
+    const receiptText = formatMissionReceipt(rawName, missions, timeStr);
+    const { jobId } = addJob({ type: "text", payload: receiptText, source: "missions", meta: { name: rawName } });
+
+    res.json({ missions, jobId, printed: "queued" });
+  } catch (e) {
+    console.error("Missions submit error:", e);
+    res.status(500).json({ error: e && e.message ? e.message : String(e) });
+  }
 });
 
 // Save and optionally print (print only when user presses Print button)
@@ -131,7 +288,8 @@ app.post("/api/print", async (req, res) => {
 
     let printResult = { printed: false, error: undefined };
     if (shouldPrint === true) {
-      printResult = await printToThermal(buf);
+      const { jobId } = addJob({ type: "image", payload: buf, source: "photobooth", meta: { orderNumber: safeOrder } });
+      printResult = await waitForJob(jobId);
       if (printResult.printed) {
         console.log("✅ Printed to thermal printer");
       } else {
@@ -244,34 +402,43 @@ app.get("/share/:order/image", (req, res) => {
 });
 
 // -------------------- Frontend hosting --------------------
+// Missions app (DON'T GET GOT) – same host, same style as photobooth
+const MISSIONS_HTML = path.join(DIST_DIR, "missions.html");
+app.get("/missions", (req, res) => {
+  if (fs.existsSync(MISSIONS_HTML)) {
+    return res.sendFile(MISSIONS_HTML);
+  }
+  res.status(404).send("Missions app not built. Run: npm run build");
+});
+
 app.use(express.static(DIST_DIR));
 
-// SPA fallback (serve index.html for any non-API route that isn't /share)
+// SPA fallback (serve index.html for any non-API route that isn't /share or /missions)
 app.get("*", (req, res) => {
   if (req.path.startsWith("/api/")) return res.status(404).send("Not found");
   if (req.path.startsWith("/share/")) return res.status(404).send("Not found");
+  if (req.path === "/missions") return res.status(404).send("Not found");
   return res.sendFile(INDEX_HTML);
 });
 
 // -------------------- Server --------------------
-// When behind ngrok (PUBLIC_BASE_URL set): run BOTH HTTP (3000) for ngrok AND HTTPS (3001) for direct LAN.
-// ngrok forwards plain HTTP to 3000; iPad can use HTTPS on 3001 (camera needs secure context).
-// When not using ngrok: HTTPS only on 3000 for direct LAN.
+// Always run BOTH HTTP (3000) and HTTPS (3001) on LAN:
+// - HTTP :3000 — missions, share links (no cert; works on phones in Safari).
+// - HTTPS :3001 — photobooth on iPad (camera needs secure context).
+// When using ngrok: ngrok forwards to HTTP 3000; set PUBLIC_BASE_URL to ngrok URL for share QR codes.
 const useNgrok = !!PUBLIC_BASE_URL;
 const httpsOpts = { cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) };
 
-if (useNgrok) {
-  const httpServer = http.createServer(app);
-  const httpsServer = https.createServer(httpsOpts, app);
-  httpServer.listen(PORT, "0.0.0.0", () => {
-    console.log(`✅ HTTP on :${PORT} (for ngrok tunnel)`);
-    console.log(`✅ HTTPS on :${PORT + 1} (for direct LAN / iPad)`);
+const httpServer = http.createServer(app);
+const httpsServer = https.createServer(httpsOpts, app);
+
+httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ HTTP on :${PORT} (missions / share — use on phone: http://<your-ip>:${PORT}/missions)`);
+  console.log(`✅ HTTPS on :${PORT + 1} (photobooth on iPad: https://<your-ip>:${PORT + 1})`);
+  if (useNgrok) {
     console.log(`ℹ️ PUBLIC_BASE_URL = ${PUBLIC_BASE_URL}`);
-    httpsServer.listen(PORT + 1, "0.0.0.0");
-  });
-} else {
-  https.createServer(httpsOpts, app).listen(PORT, "0.0.0.0", () => {
-    console.log(`✅ HTTPS Server listening on: https://localhost:${PORT}`);
-    console.log(`ℹ️ PUBLIC_BASE_URL = ${PUBLIC_BASE_URL || "(not set, LAN-only links)"}`);
-  });
-}
+  } else {
+    console.log(`ℹ️ LAN only — QR for missions: http://<your-ip>:${PORT}/missions`);
+  }
+  httpsServer.listen(PORT + 1, "0.0.0.0");
+});

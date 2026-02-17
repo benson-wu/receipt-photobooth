@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "pocha": "npm run build && cd server && npm start",
+    "qr:missions": "node scripts/missions-qr.js",
     "start:ngrok": "./start-ngrok.sh"
   },
   "devDependencies": {

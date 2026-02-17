@@ -1181,8 +1181,8 @@ async function doPrint(compositeDataUrl, previewDataUrl = null) {
 
     const title = printed ? "✅ Printed!" : "Saved";
     const subHint = printed
-      ? "Resetting for next guest..."
-      : "Printer unavailable — check USB and try again. Resetting for next guest...";
+      ? "Pick up your receipt by the door."
+      : "Printer unavailable — check USB and try again.";
     const errHint = printError ? `<div class="hint" style="color:var(--hint);font-size:0.9em;">${escapeHtml(printError)}</div>` : "";
 
     renderNeonShell({
@@ -1194,14 +1194,27 @@ async function doPrint(compositeDataUrl, previewDataUrl = null) {
             ${shareUrl ? `Saved: <a href="${shareUrl}" target="_blank">${shareUrl}</a>` : "Saved on the Mac"}
           </div>
           ${errHint}
-          <div class="hint">${subHint}</div>
+          <div class="hint" style="margin-top:12px; font-weight:600;">${subHint}</div>
+          <div class="hint" style="margin-top:16px; font-size:0.9em;" id="returnCountdown">Returning to start in 10 seconds...</div>
         </div>
       `,
       footerRightHtml: ``,
     });
 
-    await wait(1500);
-    resetOrder();
+    let secondsLeft = 10;
+    const countdownEl = document.getElementById("returnCountdown");
+    const countdownInterval = setInterval(() => {
+      secondsLeft--;
+      if (countdownEl) {
+        countdownEl.textContent = secondsLeft === 1
+          ? "Returning to start in 1 second..."
+          : `Returning to start in ${secondsLeft} seconds...`;
+      }
+      if (secondsLeft <= 0) {
+        clearInterval(countdownInterval);
+        resetOrder();
+      }
+    }, 1000);
   } catch (e) {
     renderNeonShell({
       topRightHtml: `<div class="badge">Error</div>`,

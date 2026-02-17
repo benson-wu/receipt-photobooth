@@ -118,8 +118,8 @@ You should see:
 2. **Keep the server running** (from the “Start the app” steps above).
 
 3. **Open the app in a browser:**
-   - On the **Mac**: `https://localhost:3000` (accept the self-signed cert if prompted).
-   - On **iPad** (same Wi‑Fi): `https://<YOUR_MAC_LAN_IP>:3000` (get IP with `ipconfig getifaddr en0`).
+   - On the **Mac**: `https://localhost:3001` for photobooth (accept the self-signed cert if prompted).
+   - On **iPad** (same Wi‑Fi): `https://<YOUR_MAC_LAN_IP>:3001` for photobooth (get IP with `ipconfig getifaddr en0`).
 
 4. **Run a full photobooth flow:**
    - Allow camera access.
@@ -144,20 +144,18 @@ If print fails, the image is still saved and the share link works; the UI will s
 
 ---
 
-## iPad Safari URL to open
+## URLs (two ports on LAN)
 
-On the iPad, open **one** of these (HTTPS required):
+The server always listens on **two ports** so you can avoid certificate issues on phones:
 
-- **LAN (local Wi‑Fi)**:
-  - `https://<YOUR_MAC_LAN_IP>:3000`
-  - Example format: `https://192.168.x.x:3000`
-  - If you change Wi‑Fi networks, your Mac’s LAN IP will likely change — re-check it (see “Get your Mac LAN IP address” below).
+| Port | Protocol | Use |
+|------|----------|-----|
+| **3000** | HTTP | Missions, share links — use on **phones** (no cert prompt). |
+| **3001** | HTTPS | Photobooth — use on **iPad** (camera needs secure context). |
 
-- **Public (via ngrok)**:
-  - `https://<YOUR_NGROK_HOSTNAME>.ngrok-free.dev`
-
-If you use ngrok, start the server with:
-- `PUBLIC_BASE_URL=https://<YOUR_NGROK_HOSTNAME>.ngrok-free.dev`
+- **Missions / share on phone (same Wi‑Fi):** `http://<YOUR_MAC_LAN_IP>:3000/missions` (e.g. `http://192.168.12.230:3000/missions`)
+- **Photobooth on iPad:** `https://<YOUR_MAC_LAN_IP>:3001` (e.g. `https://192.168.12.230:3001`)
+- **With ngrok:** Use the ngrok URL for share QR codes; missions can be `https://<ngrok-host>/missions` or still `http://<IP>:3000/missions` on LAN.
 
 ---
 
@@ -189,6 +187,59 @@ iOS Safari requires HTTPS for camera. If you’re using a self-signed cert:
 
 ---
 
+## Missions app (DON'T GET GOT)
+
+A second product for Pocha night: guests scan a QR, enter their name, get **3 random missions** printed on the same receipt printer. Same server and port; photobooth and missions share a **single print queue** (FIFO) so prints never collide.
+
+### Build (include missions page)
+
+```bash
+npm run build
+```
+
+This builds both the photobooth app and the missions app. The missions page is at **`/missions`**.
+
+### Missions URL for guests (QR code)
+
+- **LAN (no ngrok):** `http://<YOUR_MAC_LAN_IP>:3000/missions` (e.g. `http://192.168.12.230:3000/missions`) — **HTTP** so phones don’t hit a cert error.
+- **With ngrok:** `https://<YOUR_NGROK_HOSTNAME>.ngrok-free.app/missions`
+
+Create a QR code pointing to one of these so guests can open the missions page (LAN = same Wi‑Fi; ngrok works from anywhere).
+
+### How to test missions
+
+1. **Start the server** (after `npm run build`):
+   ```bash
+   cd server && npm start
+   ```
+
+2. **Open the missions page** on your phone or laptop:
+   - `http://localhost:3000/missions` (Mac), or
+   - `http://<MAC_LAN_IP>:3000/missions` (phone on same Wi‑Fi).  
+   Use **HTTP** (port 3000) so the phone doesn’t show a certificate error.
+
+3. **Submit a mission:**
+   - Enter a name (e.g. "Benson").
+   - Tap **REVEAL MY FATE**.
+   - You should see 3 random missions and "Your receipt is printing!" A receipt should print from the same Rongta printer.
+
+4. **Test anti-spam:** Submit the same name again (same spelling, any case). You should see: "Nice try. Ask the host if you need help."
+
+5. **Test shared queue:** While the server is running, use the **photobooth** (iPad) to take a photo and press Print, and use **missions** (phone) to submit a name. Both jobs should print one after the other in order, with no collision.
+
+### Missions data
+
+- **Mission list:** `server/data/missions.json` — edit to add or change missions (one string per line).
+- **Issuance log:** `server/data/issuance.json` — created automatically; records each name and assigned missions (gitignored).
+
+### Boot order (party day)
+
+1. Start the server (one process serves both photobooth and missions).
+2. Open photobooth on iPad: `https://<IP>:3001`.
+3. QR / missions for guests: `http://<IP>:3000/missions` (or ngrok URL + `/missions`).
+
+---
+
 ## Useful commands
 
 ### Get your Mac LAN IP address
@@ -206,5 +257,6 @@ ipconfig getifaddr en1
 ```
 
 What you’re looking for: an IP like `192.168.x.x` or `10.0.x.x`.  
-Then the iPad URL is: `https://<THAT_IP>:3000`
+- Photobooth (iPad): `https://<THAT_IP>:3001`  
+- Missions (phone): `http://<THAT_IP>:3000/missions`
 

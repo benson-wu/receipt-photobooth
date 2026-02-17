@@ -2,6 +2,9 @@
 server/saved/
 server/saved/**
 
+# Missions issuance log (party data)
+server/data/issuance.json
+
 # Local HTTPS certs (if you generated them)
 server/certs/
 server/certs/**

@@ -1,0 +1,208 @@
+/* Missions page – same neon style as photobooth */
+:root {
+  --neon-pink: #00ff41;
+  --neon-blue: #00d9ff;
+  --bg-0: #050510;
+  --bg-1: #0a0a1c;
+  --text: rgba(255, 255, 255, 0.95);
+  --text-dim: rgba(255, 255, 255, 0.78);
+  --card: rgba(255, 255, 255, 0.06);
+  --border: rgba(255, 255, 255, 0.14);
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  --radius: 18px;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100svh;
+  background: var(--bg-0);
+  color: var(--text);
+  font-family: ui-monospace, SF Mono, Menlo, monospace;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+#missions-app {
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
+.missions-bg {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 0%, var(--bg-1) 0%, var(--bg-0) 60%);
+  z-index: 0;
+}
+
+.missions-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 28px 24px;
+}
+
+.missions-title {
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: var(--text);
+  margin: 0 0 4px;
+  text-shadow: 0 0 20px rgba(0, 255, 65, 0.25);
+}
+
+.missions-subtitle {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--text-dim);
+  margin: 0 0 24px;
+}
+
+.missions-form label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.missions-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  font-size: 1rem;
+  font-family: inherit;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.missions-form input::placeholder {
+  color: var(--text-dim);
+  opacity: 0.8;
+}
+
+.missions-form input:focus {
+  outline: 2px solid var(--neon-pink);
+  outline-offset: 2px;
+}
+
+.missions-cta {
+  width: 100%;
+  padding: 16px 24px;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  color: #050510;
+  background: var(--neon-pink);
+  border: none;
+  border-radius: 14px;
+  cursor: pointer;
+  box-shadow: 0 0 24px rgba(0, 255, 65, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.missions-cta:hover {
+  transform: scale(1.02);
+  box-shadow: 0 0 32px rgba(0, 255, 65, 0.45);
+}
+
+.missions-cta:active {
+  transform: scale(0.98);
+}
+
+.missions-cta:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.missions-reminder {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 16px;
+}
+
+/* Result view */
+.missions-result-title {
+  font-size: 1.125rem;
+  font-weight: 800;
+  margin: 0 0 16px;
+  color: var(--neon-pink);
+  text-shadow: 0 0 12px rgba(0, 255, 65, 0.3);
+}
+
+.missions-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 20px;
+}
+
+.missions-list li {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.missions-list li:last-child {
+  border-bottom: none;
+}
+
+.missions-list .mission-num {
+  font-size: 0.75rem;
+  color: var(--neon-blue);
+  margin-bottom: 4px;
+}
+
+.missions-print-status {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 16px;
+}
+
+.missions-print-status.success {
+  color: var(--neon-pink);
+}
+
+.missions-print-status.error {
+  color: #ff6b6b;
+}
+
+.missions-blocked {
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-top: 16px;
+  padding: 16px;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+}
+
+.missions-screenshot-hint {
+  font-size: 0.8125rem;
+  color: var(--text-dim);
+  text-align: center;
+  margin-top: 24px;
+}
