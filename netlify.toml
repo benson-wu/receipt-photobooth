@@ -10,27 +10,3 @@
   from = "/missions"
   to = "/missions.html"
   status = 200
-
-# SPA fallback: unknown routes -> index.html (photobooth)
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  force = false
-  conditions = {Role = ["admin"]}
-
-# We want / to serve index.html, /missions to serve missions.html. So we need a rewrite, not a catch-all.
-# Actually the first redirect /missions -> /missions.html is correct. The second redirect /* -> /index.html
-# would catch everything. So /missions would first match and go to missions.html. Then /* would catch
-# everything else and send to index.html. But force = false means it only applies when the file doesn't exist.
-# So requests to /foo would get index.html. Good. But we need to make sure /missions doesn't get caught
-# by /*. In Netlify, redirects are processed in order and the first match wins. So /missions matches first
-# and goes to missions.html. Then for / we need to serve index.html - and publish is "dist", so dist/index.html
-# is at /. So we don't need the /* redirect for / - that's already index.html. We only need /* -> index.html
-# for client-side routes (if any). The photobooth is a SPA at / so / is index.html. So the only redirect we
-# need is /missions -> /missions.html. Let me remove the second redirect to avoid confusion - actually
-# Netlify will serve index.html for / by default from dist. So we're good with just the /missions redirect.
-</think>
-Removing the catch-all redirect so we don't override `/missions`.
-<｜tool▁calls▁begin｜><｜tool▁call▁begin｜>
-StrReplace
