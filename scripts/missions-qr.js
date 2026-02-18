@@ -6,7 +6,7 @@
  * Usage:
  *   npm run qr:missions
  *   node scripts/missions-qr.js [output.png]
- *   MISSIONS_URL=http://192.168.1.50:3000/missions npm run qr:missions   # when your IP changes
+ *   MISSIONS_URL=http://192.168.12.230:3000/missions npm run qr:missions   # LAN fallback
  */
 import QRCode from "qrcode";
 import fs from "fs";
@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, "..");
 
-const missionsUrl = process.env.MISSIONS_URL || "http://192.168.12.230:3000/missions";
+const missionsUrl = process.env.MISSIONS_URL || "https://pocha31.netlify.app/missions";
 const outputPath = process.argv[2] ? path.resolve(process.argv[2]) : path.join(rootDir, "missions-qr.png");
 
 async function main() {

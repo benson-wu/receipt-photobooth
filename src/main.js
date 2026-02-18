@@ -991,15 +991,20 @@ async function buildCompositeDataUrl(applyPrintFilter = false) {
 }
 
 // -------------------- Save / Print (send to Mac) --------------------
-async function sendToMacAndPrint(compositeDataUrl, { print = true } = {}) {
+// compositeDataUrl = saved to file and share/ngrok download (matches preview; no print filter).
+// printDataUrl = optional; when set and print true, this image is sent to the printer (filtered for thermal).
+async function sendToMacAndPrint(compositeDataUrl, { print = true, printDataUrl = null } = {}) {
+  const payload = {
+    orderNumber: orderNumber ?? "------",
+    imageDataUrl: compositeDataUrl,
+    print,
+  };
+  if (print && printDataUrl) payload.printDataUrl = printDataUrl;
+
   const res = await fetch(`${API_BASE}/api/print`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      orderNumber: orderNumber ?? "------",
-      imageDataUrl: compositeDataUrl,
-      print,
-    }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) throw new Error(await res.text());
@@ -1177,7 +1182,12 @@ async function doPrint(compositeDataUrl, previewDataUrl = null) {
   document.querySelector("#cancelBtn").addEventListener("click", resetOrder);
 
   try {
-    const result = await sendToMacAndPrint(compositeDataUrl);
+    // Save unfiltered (preview) for file/share; send filtered image to printer only
+    const imageForSave = previewDataUrl ?? compositeDataUrl;
+    const result = await sendToMacAndPrint(imageForSave, {
+      print: true,
+      printDataUrl: previewDataUrl ? compositeDataUrl : null,
+    });
     const shareUrl = result?.shareUrl;
     const printed = result?.printed === true;
     const printError = result?.printError;

@@ -213,7 +213,7 @@ app.get("/api/config", (req, res) => {
 // -------------------- Missions API --------------------
 function formatMissionReceipt(name, missions, timeStr) {
   const lines = [
-    "POCHA 31 – CONFIDENTIAL",
+    "POCHA 31 - CONFIDENTIAL",
     "Player: " + name,
     "Time: " + timeStr,
     "MISSION 1: " + (missions[0] || ""),
@@ -270,20 +270,20 @@ app.post("/api/missions/submit", (req, res) => {
   }
 });
 
-// Save and optionally print (print only when user presses Print button)
+// Save and optionally print (print only when user presses Print button).
+// imageDataUrl = saved to file and used for share/ngrok download (preview quality, no print filter).
+// printDataUrl = optional; when provided and shouldPrint, this image is sent to the printer (filtered for thermal).
 app.post("/api/print", async (req, res) => {
   try {
-    const { orderNumber, imageDataUrl, print: shouldPrint } = req.body || {};
+    const { orderNumber, imageDataUrl, printDataUrl, print: shouldPrint } = req.body || {};
     if (!imageDataUrl) return res.status(400).send("Missing imageDataUrl");
 
-    // Extract base64 from data URL
     const match = imageDataUrl.match(/^data:image\/jpeg;base64,(.+)$/);
     if (!match) return res.status(400).send("imageDataUrl must be a JPEG data URL");
 
     const base64 = match[1];
     const buf = Buffer.from(base64, "base64");
 
-    // Deterministic filename with date: server/saved/<orderNumber>_<yyyymmdd>.jpg
     const safeOrder = String(orderNumber || "demo").replace(/[^0-9A-Za-z_-]/g, "");
     const today = new Date();
     const dateStr = today.getFullYear().toString() + 
@@ -297,7 +297,12 @@ app.post("/api/print", async (req, res) => {
 
     let printResult = { printed: false, error: undefined };
     if (shouldPrint === true) {
-      const { jobId } = addJob({ type: "image", payload: buf, source: "photobooth", meta: { orderNumber: safeOrder } });
+      let printBuf = buf;
+      if (printDataUrl) {
+        const printMatch = printDataUrl.match(/^data:image\/jpeg;base64,(.+)$/);
+        if (printMatch) printBuf = Buffer.from(printMatch[1], "base64");
+      }
+      const { jobId } = addJob({ type: "image", payload: printBuf, source: "photobooth", meta: { orderNumber: safeOrder } });
       printResult = await waitForJob(jobId);
       if (printResult.printed) {
         console.log("✅ Printed to thermal printer");
