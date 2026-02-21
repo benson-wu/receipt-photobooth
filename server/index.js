@@ -17,10 +17,42 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // If set, share/QR links will use this public base (e.g. https://xxxx.ngrok-free.app)
-// Otherwise they fall back to LAN host (https://192.168.x.x:3000).
+// Otherwise the server will try to auto-discover from ngrok's local API (127.0.0.1:4040).
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL
   ? String(process.env.PUBLIC_BASE_URL).replace(/\/$/, "")
   : null;
+
+let discoveredNgrokUrl = null;
+
+function fetchNgrokPublicUrl() {
+  return new Promise((resolve) => {
+    const req = http.get("http://127.0.0.1:4040/api/tunnels", (res) => {
+      let body = "";
+      res.on("data", (chunk) => { body += chunk; });
+      res.on("end", () => {
+        try {
+          const data = JSON.parse(body);
+          const tunnels = data.tunnels || [];
+          const httpsTunnel = tunnels.find((t) => t.proto === "https" && t.public_url);
+          const url = httpsTunnel ? String(httpsTunnel.public_url).replace(/\/$/, "") : null;
+          resolve(url);
+        } catch (_) {
+          resolve(null);
+        }
+      });
+    });
+    req.on("error", () => resolve(null));
+    req.setTimeout(3000, () => { req.destroy(); resolve(null); });
+  });
+}
+
+async function ensureNgrokDiscovered() {
+  if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
+  if (discoveredNgrokUrl) return discoveredNgrokUrl;
+  const url = await fetchNgrokPublicUrl();
+  if (url) discoveredNgrokUrl = url;
+  return url;
+}
 
 const DIST_DIR = path.join(__dirname, "..", "dist");
 const INDEX_HTML = path.join(DIST_DIR, "index.html");
@@ -39,12 +71,45 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 function loadMissions() {
   try {
     const raw = fs.readFileSync(MISSIONS_PATH, "utf8");
-    const list = JSON.parse(raw);
-    return Array.isArray(list) ? list : [];
+    const data = JSON.parse(raw);
+    if (Array.isArray(data)) return data;
+    if (data && data.tier1 && data.tier2 && data.tier3 && data.bonus) {
+      return data;
+    }
+    return [];
   } catch (e) {
     console.warn("Could not load missions.json:", e.message);
     return [];
   }
+}
+
+function loadMissionsTiers() {
+  const data = loadMissions();
+  if (!data || !data.tier1) return null;
+  return {
+    tier1: data.tier1,
+    tier2: data.tier2,
+    tier3: data.tier3,
+    bonus: data.bonus,
+  };
+}
+
+function getTodayDateKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function countTodayIssuances() {
+  const today = getTodayDateKey();
+  const list = loadIssuance();
+  return list.filter((e) => {
+    const t = e.timestamp || e.date || "";
+    if (!t) return false;
+    const d = new Date(t);
+    if (Number.isNaN(d.getTime())) return false;
+    const issuedDateKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return issuedDateKey === today;
+  }).length;
 }
 
 function loadIssuance() {
@@ -64,7 +129,6 @@ function appendIssuance(entry) {
   fs.writeFileSync(ISSUANCE_PATH, JSON.stringify(list, null, 2), "utf8");
 }
 
-const missionsList = loadMissions();
 
 // 80mm thermal receipt: scale to fit printable width (288px leaves margin so QR stays centered)
 const THERMAL_WIDTH_PX = 288;
@@ -86,11 +150,12 @@ async function printToThermal(imageBuffer) {
     });
     const printer = await escpos.Printer.create(device);
 
-    // Resize to fit 80mm paper, grayscale, gamma to lift shadows (preserves black text)
+    // Resize to fit 80mm paper, grayscale, gamma (1–3) + brightness to lift shadows (decrease blacks)
     const bwPng = await sharp(imageBuffer)
       .resize(THERMAL_WIDTH_PX, null, { withoutEnlargement: true })
       .greyscale()
       .gamma(3.0)
+      .modulate({ brightness: 1.08 })
       .png({ colours: 2, dither: 1 })
       .toBuffer();
     const pixels = await getPixelsAsync(bwPng, "image/png");
@@ -114,49 +179,85 @@ async function printToThermal(imageBuffer) {
   }
 }
 
-/**
- * Print plain text to thermal printer (for mission receipts). Lines separated by \n.
- */
-async function printTextToThermal(textContent) {
-  let device = null;
-  try {
-    const devices = escpos.USB.findPrinter();
-    if (!devices || devices.length === 0) {
-      return { printed: false, error: "No USB printer found" };
+// 80mm thermal: wrap at word boundaries. 48 chars = typical max width for 80mm.
+const RECEIPT_CHARS_PER_LINE = 48;
+
+function wordWrapLine(line, maxLen = RECEIPT_CHARS_PER_LINE) {
+  const trimmed = line.trim();
+  if (!trimmed) return [];
+  const words = trimmed.split(/\s+/);
+  const result = [];
+  let current = "";
+  for (const word of words) {
+    const withSpace = current ? current + " " + word : word;
+    if (withSpace.length <= maxLen) {
+      current = withSpace;
+    } else {
+      if (current) result.push(current);
+      if (word.length <= maxLen) {
+        current = word;
+      } else {
+        for (let i = 0; i < word.length; i += maxLen) {
+          result.push(word.slice(i, i + maxLen));
+        }
+        current = "";
+      }
     }
-    device = new escpos.USB(devices[0]);
-    await new Promise((resolve, reject) => {
-      device.open((err) => (err ? reject(err) : resolve()));
-    });
-    const printer = await escpos.Printer.create(device);
-    const lines = String(textContent).split(/\r?\n/).filter(Boolean);
-    printer.align("lt");
-    for (const line of lines) {
-      printer.text(line.trim() || " ");
-      printer.text("\n");
-    }
-    printer.feed(1).cut();
-    await new Promise((resolve, reject) => {
-      printer.flush((err) => (err ? reject(err) : resolve()));
-    });
-    await new Promise((resolve, reject) => {
-      device.close((err) => (err ? reject(err) : resolve()));
-    });
-    return { printed: true };
-  } catch (e) {
-    if (device) {
-      try {
-        device.close(() => {});
-      } catch (_) {}
-    }
-    return { printed: false, error: e && e.message ? e.message : String(e) };
   }
+  if (current) result.push(current);
+  return result;
+}
+
+function escapeXml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Receipt paper width in px for mission image (match thermal print width). */
+const MISSION_RECEIPT_WIDTH = THERMAL_WIDTH_PX;
+const MISSION_LINE_HEIGHT = 14;
+const MISSION_FONT_SIZE = 11;
+const MISSION_PAD = 16;
+/** Max chars per line so wrapped text fits in MISSION_RECEIPT_WIDTH (avoids mid-word clip). */
+const MISSION_CHARS_PER_LINE = 38;
+
+/**
+ * Render mission receipt text to a PNG image buffer. Uses the same print path as the
+ * photobooth (raster image) so the receipt is never cut off by text buffer limits.
+ */
+async function receiptTextToImageBuffer(textContent) {
+  const inputLines = String(textContent).split(/\r?\n/).filter(Boolean);
+  const lines = inputLines.flatMap((line) => wordWrapLine(line, MISSION_CHARS_PER_LINE));
+  const height = Math.max(200, lines.length * MISSION_LINE_HEIGHT + MISSION_PAD * 2);
+  const width = MISSION_RECEIPT_WIDTH;
+
+  const tspans = lines
+    .map((line, i) => {
+      const y = i === 0 ? MISSION_PAD + MISSION_FONT_SIZE : MISSION_LINE_HEIGHT;
+      return `<tspan x="${MISSION_PAD}" ${i === 0 ? `y="${MISSION_PAD + MISSION_FONT_SIZE}"` : `dy="${MISSION_LINE_HEIGHT}"`}>${escapeXml(line)}</tspan>`;
+    })
+    .join("\n    ");
+
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="100%" height="100%" fill="white"/>
+  <text font-family="monospace, Courier, sans-serif" font-size="${MISSION_FONT_SIZE}" fill="black" xml:space="preserve">
+    ${tspans}
+  </text>
+</svg>`;
+
+  const png = await sharp(Buffer.from(svg))
+    .png()
+    .toBuffer();
+  return png;
 }
 
 // -------------------- Print queue: single processor for image + text --------------------
 setProcessor(async (job) => {
   if (job.type === "image") return printToThermal(job.payload);
-  if (job.type === "text") return printTextToThermal(job.payload);
   return { printed: false, error: "Unknown job type" };
 });
 
@@ -177,9 +278,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Helper: choose base URL for links (public if available)
+// Helper: choose base URL for links (public if available). Use sync value; /api/config may refresh discovery.
 function getBaseUrl(req) {
   if (PUBLIC_BASE_URL) return PUBLIC_BASE_URL;
+  if (discoveredNgrokUrl) return discoveredNgrokUrl;
   const host = req.headers.host; // e.g. 192.168.12.230:3000
   return `https://${host}`;
 }
@@ -206,8 +308,9 @@ app.get("/api/printers", (req, res) => {
 });
 
 // Frontend fetches this to know whether to use ngrok/public URL for QR codes
-app.get("/api/config", (req, res) => {
-  res.json({ publicBaseUrl: PUBLIC_BASE_URL });
+app.get("/api/config", async (req, res) => {
+  await ensureNgrokDiscovered();
+  res.json({ publicBaseUrl: PUBLIC_BASE_URL || discoveredNgrokUrl || null });
 });
 
 // -------------------- Missions API --------------------
@@ -219,23 +322,39 @@ function formatMissionReceipt(name, missions, timeStr) {
     "MISSION 1: " + (missions[0] || ""),
     "MISSION 2: " + (missions[1] || ""),
     "MISSION 3: " + (missions[2] || ""),
-    "If completed:",
-    "I GOT YOU",
+    "BONUS MISSION: " + (missions[3] || ""),
+    "If you complete a mission, say \"I GOT YOU\" to the person and scratch off (literally with your nail) the mission on this receipt.",
     "Do not show anyone.",
   ];
   return lines.join("\n");
 }
 
-function pickRandomMissions(list, n = 3) {
-  const shuffled = [...list].sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, n);
+function pickMissionCombination(tiers, dayIndex) {
+  const len = 20;
+  const t1 = tiers.tier1 || [];
+  const t2 = tiers.tier2 || [];
+  const t3 = tiers.tier3 || [];
+  const bonus = tiers.bonus || [];
+  if (t1.length < len || t2.length < len || t3.length < len || bonus.length < len) {
+    return null;
+  }
+  let i1, i2, i3, i4;
+  if (dayIndex < len) {
+    i1 = i2 = i3 = i4 = dayIndex;
+  } else {
+    i1 = Math.floor(Math.random() * len);
+    i2 = Math.floor(Math.random() * len);
+    i3 = Math.floor(Math.random() * len);
+    i4 = Math.floor(Math.random() * len);
+  }
+  return [t1[i1], t2[i2], t3[i3], bonus[i4]];
 }
 
 app.get("/api/missions/list", (req, res) => {
   res.json(loadMissions());
 });
 
-app.post("/api/missions/submit", (req, res) => {
+app.post("/api/missions/submit", async (req, res) => {
   try {
     const rawName = (req.body && req.body.name) ? String(req.body.name).trim() : "";
     if (!rawName) {
@@ -251,17 +370,22 @@ app.post("/api/missions/submit", (req, res) => {
       });
     }
 
-    const list = loadMissions();
-    if (list.length < 3) {
-      return res.status(500).json({ error: "Not enough missions configured" });
+    const tiers = loadMissionsTiers();
+    if (!tiers) {
+      return res.status(500).json({ error: "Missions not configured (need tier1, tier2, tier3, bonus)" });
     }
-    const missions = pickRandomMissions(list, 3);
-    const timeStr = new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit" });
+    const dayIndex = countTodayIssuances();
+    const missions = pickMissionCombination(tiers, dayIndex);
+    if (!missions) {
+      return res.status(500).json({ error: "Not enough missions in tiers (need 20 per tier)" });
+    }
+    const timeStr = new Date().toLocaleTimeString("en-US", { hour12: true, hour: "2-digit", minute: "2-digit" });
 
     appendIssuance({ name: rawName, timestamp: new Date().toISOString(), missions });
 
     const receiptText = formatMissionReceipt(rawName, missions, timeStr);
-    const { jobId } = addJob({ type: "text", payload: receiptText, source: "missions", meta: { name: rawName } });
+    const receiptImageBuffer = await receiptTextToImageBuffer(receiptText);
+    const { jobId } = addJob({ type: "image", payload: receiptImageBuffer, source: "missions", meta: { name: rawName } });
 
     res.json({ missions, jobId, printed: "queued" });
   } catch (e) {
@@ -439,20 +563,39 @@ app.get("*", (req, res) => {
 // Always run BOTH HTTP (3000) and HTTPS (3001) on LAN:
 // - HTTP :3000 — missions, share links (no cert; works on phones in Safari).
 // - HTTPS :3001 — photobooth on iPad (camera needs secure context).
-// When using ngrok: ngrok forwards to HTTP 3000; set PUBLIC_BASE_URL to ngrok URL for share QR codes.
-const useNgrok = !!PUBLIC_BASE_URL;
+// ngrok forwards to HTTP 3000; public URL is auto-discovered from ngrok API (127.0.0.1:4040) if not set.
 const httpsOpts = { cert: fs.readFileSync(CERT_PATH), key: fs.readFileSync(KEY_PATH) };
 
 const httpServer = http.createServer(app);
 const httpsServer = https.createServer(httpsOpts, app);
 
+function startNgrokDiscoveryLoop() {
+  if (PUBLIC_BASE_URL || discoveredNgrokUrl) return;
+  let attempts = 0;
+  const maxAttempts = 10;
+  const interval = 2000;
+  const tryOnce = () => {
+    fetchNgrokPublicUrl().then((url) => {
+      if (url) {
+        discoveredNgrokUrl = url;
+        console.log(`ℹ️ ngrok URL (auto): ${discoveredNgrokUrl}`);
+        return;
+      }
+      attempts++;
+      if (attempts < maxAttempts) setTimeout(tryOnce, interval);
+    });
+  };
+  setTimeout(tryOnce, 1500);
+}
+
 httpServer.listen(PORT, "0.0.0.0", () => {
   console.log(`✅ HTTP on :${PORT} (missions / share — use on phone: http://<your-ip>:${PORT}/missions)`);
   console.log(`✅ HTTPS on :${PORT + 1} (photobooth on iPad: https://<your-ip>:${PORT + 1})`);
-  if (useNgrok) {
+  if (PUBLIC_BASE_URL) {
     console.log(`ℹ️ PUBLIC_BASE_URL = ${PUBLIC_BASE_URL}`);
   } else {
-    console.log(`ℹ️ LAN only — QR for missions: http://<your-ip>:${PORT}/missions`);
+    console.log(`ℹ️ Checking for ngrok... (QR will use ngrok URL when available)`);
+    startNgrokDiscoveryLoop();
   }
   httpsServer.listen(PORT + 1, "0.0.0.0");
 });

@@ -59,11 +59,11 @@ let previewCountdownTimer = null;
 // public URL for QR codes (ngrok, etc.)
 let publicBaseUrl = null;
 
-// Print filters — developer-only constants, applied only when printing (not in preview)
+// Print filters — applied only when printing (not in preview). Lower brightness = darker print (e.g. with ring light).
 const PRINT_FILTER_CONTRAST = 1.0;    // preserve contrast for detail
-const PRINT_FILTER_BRIGHTNESS = 3.2;  // strong boost (thermal prints tend dark)
+const PRINT_FILTER_BRIGHTNESS = 1.2;  // lower = darker print (reduce if face still overexposed)
 const PRINT_FILTER_SATURATION = 0.6;
-const PRINT_FILTER_GAMMA = 0.82;      // <1 brightens shadows (detail in darks)
+const PRINT_FILTER_GAMMA = 0.94;       // less shadow lift = slightly darker
 
 // capture cancellation / concurrency
 let captureToken = 0;
@@ -160,16 +160,16 @@ function redPandaHtml() {
       <svg width="100" height="90" viewBox="0 0 100 90" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <defs>
           <linearGradient id="panda-head-grad-${uid}" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stop-color="${redOrange}" stop-opacity="0.4" />
-            <stop offset="100%" stop-color="${darkBrown}" stop-opacity="0.25" />
+            <stop offset="0%" stop-color="${redOrange}" stop-opacity="0.95" />
+            <stop offset="100%" stop-color="${darkBrown}" stop-opacity="0.9" />
           </linearGradient>
           <linearGradient id="panda-body-grad-${uid}" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="${redOrange}" stop-opacity="0.35" />
-            <stop offset="100%" stop-color="${darkBrown}" stop-opacity="0.4" />
+            <stop offset="0%" stop-color="${redOrange}" stop-opacity="0.9" />
+            <stop offset="100%" stop-color="${darkBrown}" stop-opacity="0.95" />
           </linearGradient>
           <linearGradient id="panda-tail-grad-${uid}" x1="100%" y1="50%" x2="0%" y2="50%">
-            <stop offset="0%" stop-color="${redOrange}" stop-opacity="0.5" />
-            <stop offset="100%" stop-color="${darkBrown}" stop-opacity="0.4" />
+            <stop offset="0%" stop-color="${redOrange}" stop-opacity="0.9" />
+            <stop offset="100%" stop-color="${darkBrown}" stop-opacity="0.85" />
           </linearGradient>
           <filter id="panda-glow-${uid}" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="1.5" result="blur" />
@@ -268,11 +268,14 @@ function initPersistentLanterns() {
 }
 
 // -------------------- Public base URL (ngrok-aware) --------------------
+// When on Netlify, we must fetch config from API_BASE (ngrok) so the QR points to the
+// share URL on ngrok, not Netlify (share page and image are served by the Mac).
 async function getPublicBaseUrl() {
   if (publicBaseUrl) return publicBaseUrl;
 
   try {
-    const res = await fetch("/api/config", { cache: "no-store" });
+    const configUrl = API_BASE ? `${API_BASE}/api/config` : "/api/config";
+    const res = await fetch(configUrl, { cache: "no-store" });
     if (res.ok) {
       const json = await res.json();
       if (json?.publicBaseUrl) {
@@ -476,7 +479,9 @@ function renderTemplateThumb(id) {
 }
 
 function renderCamera() {
-  armIdleTimer();
+  // Don't run idle countdown while taking photos (any template)
+  idleTimerEnabled = false;
+  clearIdleTimer();
 
   const token = captureToken;
   const auto = isAutoMode();

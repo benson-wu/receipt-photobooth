@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "preview:netlify": "npm run build && npm run preview",
-    "pocha": "caffeinate -i sh -c 'npm run build && cd server && npm start'",
+    "pocha": "caffeinate -i ./start-ngrok.sh",
     "qr:missions": "node scripts/missions-qr.js",
     "start:ngrok": "./start-ngrok.sh"
   },

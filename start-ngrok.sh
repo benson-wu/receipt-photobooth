@@ -38,5 +38,5 @@ if [ -z "$URL" ]; then
   exit 1
 fi
 
-# Build and start server with ngrok URL
-npm run build && cd server && PUBLIC_BASE_URL="$URL" npm start
+# Build and start server (server will auto-discover ngrok URL from 127.0.0.1:4040)
+npm run build && cd server && npm start

@@ -79,7 +79,7 @@ function renderResult(missions, printStatus, printError) {
       <p class="missions-subtitle">Pocha 31 – Confidential</p>
       <h2 class="missions-result-title">Your missions</h2>
       <ul class="missions-list">
-        ${missions.map((m, i) => `<li><span class="mission-num">MISSION ${i + 1}</span><br/>${escapeHtml(m)}</li>`).join("")}
+        ${missions.map((m, i) => `<li><span class="mission-num">${i < 3 ? `MISSION ${i + 1}` : "BONUS MISSION"}</span><br/>${escapeHtml(m)}</li>`).join("")}
       </ul>
       <p class="missions-print-status ${statusClass}">${escapeHtml(statusText)}</p>
       <p class="missions-screenshot-hint">Screenshot this page as a backup.</p>
